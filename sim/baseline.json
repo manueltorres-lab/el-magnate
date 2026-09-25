@@ -1,54 +1,54 @@
 {
-  "games": 4000,
+  "games": 20000,
   "seedBase": 1000,
   "rows": [
     {
       "bot": "conservador",
-      "games": 4000,
-      "pMillon": 5.375,
+      "games": 20000,
+      "pMillon": 5.33,
       "pImperio": 0,
-      "mediana": 38206735,
+      "mediana": 38008962,
       "pQuiebra": 0
     },
     {
       "bot": "medio",
-      "games": 4000,
-      "pMillon": 4.1,
-      "pImperio": 0.05,
-      "mediana": 25682818,
-      "pQuiebra": 0.325
+      "games": 20000,
+      "pMillon": 4,
+      "pImperio": 0.025,
+      "mediana": 25961558.5,
+      "pQuiebra": 0.285
     },
     {
       "bot": "mixto",
-      "games": 4000,
-      "pMillon": 8.75,
-      "pImperio": 0.425,
-      "mediana": 24421724.5,
-      "pQuiebra": 2.025
+      "games": 20000,
+      "pMillon": 8.845,
+      "pImperio": 0.43,
+      "mediana": 23815388,
+      "pQuiebra": 1.9
     },
     {
       "bot": "azar",
-      "games": 4000,
-      "pMillon": 9.575,
-      "pImperio": 0.5,
-      "mediana": 26889623.5,
-      "pQuiebra": 1.925
+      "games": 20000,
+      "pMillon": 9.86,
+      "pImperio": 0.525,
+      "mediana": 27564233.5,
+      "pQuiebra": 1.57
     },
     {
       "bot": "agresivo",
-      "games": 4000,
-      "pMillon": 11.575,
-      "pImperio": 2.225,
-      "mediana": 9932186.5,
-      "pQuiebra": 17.6
+      "games": 20000,
+      "pMillon": 11.825,
+      "pImperio": 2.385,
+      "mediana": 10518940.5,
+      "pQuiebra": 17.22
     },
     {
       "bot": "manotazo",
-      "games": 4000,
-      "pMillon": 8.225,
-      "pImperio": 1.725,
-      "mediana": 6138564,
-      "pQuiebra": 31.225
+      "games": 20000,
+      "pMillon": 8.51,
+      "pImperio": 1.765,
+      "mediana": 5944505.5,
+      "pQuiebra": 30.77
     }
   ]
 }

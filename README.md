@@ -10,7 +10,7 @@ manda intenciones ("elegí la opción 2", "me planto"). El plan completo está e
 | Fase | Qué | Estado |
 |---|---|---|
 | 1 | Motor puro + tests + simulación de balance | ✅ Hecha: ver abajo |
-| 2 | Supabase + API | Pendiente: necesita el proyecto "el-magnate-dev" y el login de la CLI (§12 del handoff) |
+| 2 | Supabase + API | 🚧 En curso: ver "Dónde quedó la Fase 2" |
 | 3 | Front conectado | Pendiente |
 | 4 | Ranking, colección, duelos reales | Pendiente |
 | 5 | Imagen de la story en el server (opcional) | Pendiente |
@@ -97,3 +97,41 @@ Qué cubren:
   previa al pick, como el original (lee `this.state` antes del `setState`). Se mantiene.
 - **Código de partida**: `mkCode()` usa `crypto.getRandomValues` (el original usaba
   `Math.random`). La semilla ya no se deriva del código solo: `u32(HMAC(SERVER_SECRET, code|n))`.
+
+## Dónde quedó la Fase 2 (para retomar)
+
+Hecho (sin commitear a Supabase todavía, nada desplegado):
+
+- `supabase/migrations/20260925120000_game.sql`: tablas del §7 en el schema `game`
+  (no expuesto), RLS sin policies, revokes, `rate_hit`, `abandon_stale_runs`, vista
+  `ranking_candidates`, siembra de `rareza`. **Aplica sin errores** en Postgres 16.
+- `supabase/functions/_shared/`: `app.ts` (Hono, todas las rutas del §6), `store.ts`
+  (SQL directo con `postgres`, control optimista en una transacción), `auth.ts`
+  (valida el JWT con Supabase Auth), `config.ts` (GAME_CONFIG), `errors.ts`.
+- `supabase/functions/api/index.ts` + `deno.json`: `deno check` pasa.
+- `scripts/sync-engine.mjs`: copia `/engine` a `_shared/engine` (el deploy solo sube
+  `supabase/functions`); con `--check` falla si la copia quedó vieja.
+- `scripts/pg-local.sh`: Postgres local descartable con un shim de Supabase
+  (`supabase/tests/supabase-shim.sql`) para probar sin Docker.
+- Tests escritos: `supabase/tests/api.test.ts` (partida completa por HTTP, doble envío,
+  dos pestañas, fuera de fase, partida ajena, duelo, $LBtag, ranking, rate limit, CORS,
+  reproducir una partida desde `run_actions`) y `supabase/tests/security.test.ts`.
+
+Próximo paso inmediato: **los tests de la API todavía no pasan.** El primer error:
+`POST /api/runs` devuelve 500 porque `toView` recibe un `state` que no es el objeto
+(`Object.entries(undefined)` en `view.ts`). Casi seguro es cómo vuelve el `jsonb`
+insertado con `tx.unsafe(..., JSON.stringify(state))::jsonb` en `store.ts`
+(`createRun`/`getRun`): revisar que `state`/`config` lleguen como objeto (usar
+`sql.json(...)` o parsear si vienen como string). Para ver el stack: `API_DEBUG=1`.
+
+Después:
+
+1. Hacer pasar `node --test --test-concurrency=1 supabase/tests/*.test.ts` y sumarlo a
+   `npm test` (con `npm run sync:engine -- --check`).
+2. Smoke test del entrypoint en Deno contra la base local con un Auth falso.
+3. Script de chequeo con la anon key contra el proyecto real (select/insert en cada
+   tabla tiene que fallar).
+4. Con la persona: crear "el-magnate-dev", `npx supabase login` + `link`, cargar
+   `SERVER_SECRET` con `supabase secrets set` sin mostrarlo, `ALLOWED_ORIGINS`,
+   desactivar la Data API para `public`, y recién ahí migraciones + deploy al dev.
+   Preguntar antes de tocar el proyecto real `ayyfmyixljjtxkfvyhsz`.

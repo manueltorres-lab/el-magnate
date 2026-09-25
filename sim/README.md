@@ -20,22 +20,24 @@ del primer doble.
 
 ## Tabla actual (código de `El Magnate.dc.html`, montos en pesos)
 
-`node sim/run.ts 4000` — "millón" = $100M, "imperio" = $500M (la tabla del documento ×100).
+`node sim/run.ts 20000` — "millón" = $100M, "imperio" = $500M (la tabla del documento ×100).
 
 | Cómo juega | ≥$100M | ≥$500M | Mediana | Quiebra |
 |---|---|---|---|---|
-| conservador | 5,4% | 0,00% | $38.206.735 | 0,0% |
-| medio | 4,1% | 0,05% | $25.682.818 | 0,3% |
-| mixto | 8,8% | 0,42% | $24.421.725 | 2,0% |
-| azar | 9,6% | 0,50% | $26.889.624 | 1,9% |
-| agresivo | 11,6% | 2,23% | $9.932.187 | 17,6% |
-| manotazo | 8,2% | 1,73% | $6.138.564 | 31,2% |
+| conservador | 5,3% | 0,00% | $38.008.962 | 0,0% |
+| medio | 4,0% | 0,03% | $25.961.559 | 0,3% |
+| mixto | 8,8% | 0,43% | $23.815.388 | 1,9% |
+| azar | 9,9% | 0,53% | $27.564.234 | 1,6% |
+| agresivo | 11,8% | 2,38% | $10.518.941 | 17,2% |
+| manotazo | 8,5% | 1,76% | $5.944.506 | 30,8% |
 
 Los 19 finales salen (el más raro, *El Que Tenía Todo Servido*, en ~0,26% de las partidas).
 
-`sim/baseline.json` guarda esta tabla. `sim/balance.test.ts` vuelve a jugar 4.000
-partidas por bot **con otras semillas** y exige ±10% relativo en la mediana y ±1 punto en
-cada porcentaje: si alguien toca un número del balance, se entera.
+`sim/baseline.json` guarda esta tabla (20.000 partidas por bot). `sim/balance.test.ts`
+vuelve a jugar 4.000 partidas por bot **con otras semillas** y exige ±10% relativo en la
+mediana y ±1 punto en cada porcentaje (o 3 errores estándar si es más: con ~30% de quiebra,
+±1 punto es menos que el ruido de 4.000 partidas). Si alguien toca un número del balance,
+se entera.
 
 ## ⚠️ Diferencia con la tabla de `balance-y-diseno.md` §8
 

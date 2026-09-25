@@ -12,10 +12,18 @@
     "gen:data": "node scripts/extract-data.mjs",
     "sim": "node sim/run.ts",
     "test:balance": "node --test --test-reporter=spec sim/*.test.ts",
-    "test:all": "npm run typecheck && npm test && npm run test:balance"
+    "test:all": "npm run typecheck && npm test && npm run test:balance",
+    "sync:engine": "node scripts/sync-engine.mjs",
+    "test:api": "node --test --test-reporter=spec --test-concurrency=1 supabase/tests/*.test.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
+    "deno": "^2.9.6",
     "typescript": "^5.9.0"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "2.117.1",
+    "hono": "^4.13.9",
+    "postgres": "^3.4.9"
   }
 }

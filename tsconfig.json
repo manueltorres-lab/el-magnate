@@ -22,6 +22,8 @@
   "include": [
     "engine/**/*.ts",
     "sim/**/*.ts",
-    "scripts/**/*.mjs"
+    "scripts/**/*.mjs",
+    "supabase/functions/_shared/**/*.ts",
+    "supabase/tests/**/*.ts"
   ]
 }
