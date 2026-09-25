@@ -1,0 +1,21 @@
+{
+  "name": "el-magnate",
+  "private": true,
+  "type": "module",
+  "description": "El Magnate: motor autoritativo, API y front",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "test": "node --test --test-reporter=spec engine/test/*.test.ts",
+    "typecheck": "tsc --noEmit -p .",
+    "gen:data": "node scripts/extract-data.mjs",
+    "sim": "node sim/run.ts",
+    "test:balance": "node --test --test-reporter=spec sim/*.test.ts",
+    "test:all": "npm run typecheck && npm test && npm run test:balance"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.9.0"
+  }
+}
