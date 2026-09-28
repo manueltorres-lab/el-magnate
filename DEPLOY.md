@@ -91,3 +91,26 @@ Hecho, con el OK de la persona:
 Pendiente: cuando exista el dominio del juego, agregarlo a `ALLOWED_ORIGINS`
 (`npx supabase secrets set --project-ref ayyfmyixljjtxkfvyhsz ALLOWED_ORIGINS="https://<dominio>,http://localhost:5173"`).
 El front va a necesitar la Site Key de Turnstile para `signInAnonymously`.
+
+## 4. El front (web/)
+
+`web/` es una página estática: se sube la carpeta tal cual, sin build. Casi todo sale de
+`npm run build:web`, que la arma desde `handoff/referencia/deploy-actual.html` (mismo
+template, fuentes, logo y runtime, así se ve idéntica). Se escriben a mano solo
+`web/app.js` (la lógica que habla con la API) y `web/config.js`.
+
+- En `localhost` usa el proyecto de prueba (sin CAPTCHA); en cualquier otro dominio, el
+  real con Turnstile.
+- Para probar local: `cd web && python3 -m http.server 5173` y abrir http://localhost:5173.
+
+### Publicarla en Cloudflare Pages
+
+1. En dash.cloudflare.com → *Workers & Pages* → *Create* → *Pages* → *Upload assets*
+   (o conectar este repo de GitHub, con **directorio de salida `web`** y sin comando de build).
+2. Nombre del proyecto: `el-magnate` → queda en `https://el-magnate.pages.dev`.
+3. En *Turnstile* → el widget de la Site Key → *Hostnames*: agregar `el-magnate.pages.dev`
+   (y después el dominio propio). Sin esto, Cloudflare rechaza el CAPTCHA en esa página.
+4. Con el dominio ya elegido, sumarlo al CORS del servidor:
+   `npx supabase secrets set --project-ref ayyfmyixljjtxkfvyhsz ALLOWED_ORIGINS="https://el-magnate.pages.dev,http://localhost:5173"`
+5. Dominio propio (ej. `magnate.lbfinanzas.com`): en el proyecto de Pages → *Custom domains*,
+   y repetir los pasos 3 y 4 con ese dominio.

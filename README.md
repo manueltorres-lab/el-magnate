@@ -11,7 +11,7 @@ manda intenciones ("elegí la opción 2", "me planto"). El plan completo está e
 |---|---|---|
 | 1 | Motor puro + tests + simulación de balance | ✅ Hecha: ver abajo |
 | 2 | Supabase + API | ✅ Desplegada en prueba y en el real. Falta el dominio del juego en el CORS: ver [`DEPLOY.md`](DEPLOY.md) |
-| 3 | Front conectado | Pendiente |
+| 3 | Front conectado | ✅ En `web/`, probado contra el proyecto de prueba. Falta publicarlo: ver [`DEPLOY.md`](DEPLOY.md) |
 | 4 | Ranking, colección, duelos reales | Pendiente |
 | 5 | Imagen de la story en el server (opcional) | Pendiente |
 
@@ -28,6 +28,10 @@ engine/            motor puro, sin dependencias (corre en Node ≥ 22.18 y en De
   actions.ts       validActions(view): qué acciones acepta el server en cada momento
   test/            paridad, golden, invariantes, fugas de la vista
 sim/               bots de estrategia y test de balance
+web/               front estático: se publica tal cual (index.html, app.js, config.js…)
+  app.js           la lógica de pantalla: manda acciones a la API y muestra el `view`
+  config.js        URL, anon key y Site Key de Turnstile (públicas); localhost → proyecto de prueba
+  test/            el front jugando partidas enteras contra el motor
 scripts/           extracción de datos y carga del juego original para los tests
 handoff/           el paquete de handoff tal como llegó (referencia, capturas, logos)
 ```

@@ -1,0 +1,236 @@
+// El front (web/app.js) jugando partidas enteras contra el motor, que hace de servidor.
+// Verifica que cada botón mande una acción válida, que la pantalla tenga todos los datos que
+// pide el template en cada fase, y que los manejos de error (409, red caída) no rompan nada.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import vm from 'node:vm';
+import { createRun, deriveSeeds, mkCode, step, toView, validActions, type RunState } from '../../engine/index.ts';
+
+const ROOT = new URL('../', import.meta.url);
+const read = (p: string) => readFileSync(new URL(p, ROOT), 'utf8');
+const HTML = read('index.html');
+const TPL = HTML.slice(HTML.indexOf('<x-dc>'), HTML.indexOf('</x-dc>'));
+
+// variables raíz que usa el template (sin las de los sc-for) y rutas a.b sobre ellas
+const loopVars = new Set([...TPL.matchAll(/as="([a-z]+)"/g)].map((m) => m[1]));
+const exprs = [...new Set([...TPL.matchAll(/\{\{\s*([^}]+?)\s*\}\}/g)].map((m) => m[1]))]
+  .filter((e) => /^[a-zA-Z_][\w.]*$/.test(e) && e !== 'true' && !loopVars.has(e.split('.')[0]));
+
+type Json = any; // eslint-disable-line @typescript-eslint/no-explicit-any
+
+/** Un servidor falso con el motor de verdad, con la misma forma de respuesta que la API. */
+function fakeServer() {
+  const runs = new Map<string, { state: RunState; version: number }>();
+  const unlocked = new Set<string>();
+  let n = 0;
+  const calls: { method: string; path: string; body: Json }[] = [];
+  let failNext: 'network' | 'conflict' | null = null;
+  const reply = (status: number, json: unknown) => ({ ok: status < 400, status, json: async () => json });
+
+  async function fetch(url: string, init: { method: string; body?: string }) {
+    if (failNext === 'network') { failNext = null; throw new TypeError('Failed to fetch'); }
+    try { return await handle(url, init); }
+    catch (e) { return reply(500, { error: { code: 'internal', message: 'servidor falso: ' + (e as Error).message } }); }
+  }
+  async function handle(url: string, init: { method: string; body?: string }) {
+    const path = url.replace(/^.*\/functions\/v1\/api/, '');
+    const body = init.body ? JSON.parse(init.body) : null;
+    calls.push({ method: init.method, path, body });
+    if (init.method === 'GET' && path === '/me') return reply(200, { playerId: 'p', lbtag: null, unlocked: [...unlocked] });
+    if (init.method === 'PUT' && path === '/me/lbtag') return reply(200, { lbtag: body.lbtag.toLowerCase() });
+    if (init.method === 'POST' && path === '/runs') {
+      const code = body.duelo || mkCode();
+      const seeds = await deriveSeeds('secreto-de-test-con-mas-de-32-caracteres', code, 12);
+      const id = 'run-' + ++n;
+      runs.set(id, { state: createRun({ code, seeds, duelo: !!body.duelo }), version: 0 });
+      return reply(201, { runId: id, version: 0, status: 'active', view: toView(runs.get(id)!.state) });
+    }
+    const m = /^\/runs\/([\w-]+)(\/actions)?$/.exec(path);
+    const run = m && runs.get(m[1]);
+    if (!run) return reply(404, { error: { code: 'not_found', message: 'No encontramos esa partida.' } });
+    const status = () => (run.state.screen === 'result' ? 'finished' : 'active');
+    if (init.method === 'GET') return reply(200, { runId: m![1], version: run.version, status: status(), view: toView(run.state) });
+    if (failNext === 'conflict') { failNext = null; run.version++; }
+    if (body.version !== run.version) return reply(409, { error: { code: 'version_conflict', message: 'La partida avanzó.' } });
+    run.state = step(run.state, body.action); // tira si la acción no corresponde: el test falla
+    run.version++;
+    if (run.state.screen === 'result') unlocked.add(run.state.titleKey!);
+    return reply(200, { version: run.version, status: status(), view: toView(run.state) });
+  }
+  return { fetch, calls, fail: (k: typeof failNext) => { failNext = k; } };
+}
+
+/** Carga config.js, data.js y app.js en un contexto aislado, con un setState sincrónico. */
+const mem = (): Json => { const m = new Map(); return { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => m.set(k, v), removeItem: (k: string) => m.delete(k) }; };
+
+function loadFront(server: ReturnType<typeof fakeServer>, storage = { local: mem(), session: mem() }) {
+  const timers: { fn: () => void; ms: number }[] = [];
+  const ctx: Json = {
+    console, JSON, Math, Object, Array, String, Number, Set, Map, Promise, Error, TypeError, URL, URLSearchParams, Date,
+    location: { hostname: 'localhost', href: 'http://localhost:5173/', search: '' },
+    localStorage: storage.local, sessionStorage: storage.session, navigator: {},
+    fetch: server.fetch,
+    setTimeout: (fn: () => void, ms: number) => { timers.push({ fn, ms }); return timers.length; },
+    clearTimeout: () => {}, setInterval: () => 0, clearInterval: () => {},
+    document: {},
+  };
+  ctx.window = ctx;
+  ctx.supabase = { createClient: () => ({ auth: {
+    getSession: async () => ({ data: { session: { access_token: 'tok' } } }),
+    signInAnonymously: async () => ({ data: { session: { access_token: 'tok' } }, error: null }),
+    signOut: async () => ({}),
+  } }) };
+  vm.createContext(ctx);
+  for (const f of ['config.js', 'data.js', 'app.js']) vm.runInContext(read(f), ctx, { filename: f });
+  const Base = vm.runInContext(`(class { constructor(p){ this.props = p || {}; }
+    setState(patch, cb){ const p = typeof patch === 'function' ? patch(this.state, this.props) : patch;
+      this.state = Object.assign({}, this.state, p); if (cb) cb(); } })`, ctx);
+  const C = ctx.MagnateLogic(Base);
+  const comp = new C({});
+  /** deja correr las promesas pendientes y los timers (animaciones), en orden */
+  const settle = async () => {
+    await comp.booted;
+    for (let i = 0; i < 20 || comp.busy; i++) {
+      assert.ok(i < 100000, 'el front quedó trabado');
+      await new Promise((r) => setImmediate(r));
+      if (timers.length) { timers.sort((a, b) => a.ms - b.ms); timers.shift()!.fn(); i = 0; }
+    }
+  };
+  return { comp, settle, storage };
+}
+
+function checkBindings(vals: Json, where: string) {
+  for (const e of exprs) {
+    const parts = e.split('.');
+    let cur = vals;
+    for (const p of parts) {
+      assert.ok(cur != null && p in cur, `${where}: falta {{ ${e} }}`);
+      cur = cur[p];
+    }
+  }
+}
+
+/** Toca un botón al azar entre los que muestra la pantalla actual. */
+function buttons(vals: Json): (() => unknown)[] {
+  if (vals.isStart) return [vals.onStart];
+  if (vals.isResult) return [];
+  const v = vals.view;
+  if (v.isToast) return [vals.onContinue];
+  if (v.isScenario) return vals.options.map((o: Json) => o.pick);
+  if (v.isChoice) return vals.evOptions.map((o: Json) => o.pick);
+  if (v.isQuiz) return vals.quiz.answered ? [vals.quiz.onNext] : vals.quiz.opts.map((o: Json) => o.pick);
+  if (v.isMini) {
+    if (vals.mini.done) return [vals.onFinishMini];
+    if (vals.mini.isSobres) return vals.mini.sobres.map((s: Json) => s.pick);
+    return vals.mini.actions.map((a: Json) => a.run);
+  }
+  return [];
+}
+
+test('front: partidas completas con clics al azar, con todos los datos del template en cada pantalla', async () => {
+  let seed = 7;
+  const rnd = () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648);
+  const seen = new Set<string>();
+  for (let g = 0; g < 60; g++) {
+    const server = fakeServer();
+    const { comp, settle } = loadFront(server);
+    comp.componentDidMount();
+    await settle();
+    let clicks = 0;
+    for (;;) {
+      const vals = comp.renderVals();
+      const screen = vals.isStart ? 'start' : vals.isResult ? 'result' : Object.keys(vals.view).find((k) => vals.view[k]);
+      seen.add(screen + (vals.view.isMini ? ':' + (comp.state.view.mini.kind) : ''));
+      checkBindings(vals, `partida ${g}, ${screen}`);
+      assert.ok(!vals.net.show, `partida ${g}: apareció un error: ${vals.net.msg}`);
+      if (vals.isResult) {
+        assert.ok(vals.title.title && vals.title.icon, 'el resultado tiene título');
+        assert.ok(comp.state.unlocked.includes(comp.state.view.final.titleKey), 'el final entra a la colección');
+        assert.ok(vals.shareCopy.includes(vals.title.title));
+        break;
+      }
+      const b = buttons(vals);
+      assert.ok(b.length, `partida ${g}: pantalla ${screen} sin botones`);
+      // la pantalla ofrece exactamente lo que el motor acepta
+      if (!vals.isStart && !(vals.view.isMini && comp.state.view.mini.kind === 'sobres' && !vals.mini.done)) {
+        assert.equal(b.length, validActions(comp.state.view).length, `partida ${g}: botones en ${screen}`);
+      }
+      b[Math.floor(rnd() * b.length)]();
+      await settle();
+      assert.ok(++clicks < 300, 'la partida no termina');
+    }
+  }
+  for (const k of ['start', 'isScenario', 'isToast', 'isQuiz', 'isChoice', 'isMini:slots', 'isMini:ruleta', 'isMini:doble', 'isMini:sobres', 'isMini:blackjack', 'result']) {
+    assert.ok(seen.has(k), 'no se llegó a ' + k + ' (visto: ' + [...seen].join(', ') + ')');
+  }
+});
+
+test('front: doble clic manda una sola acción', async () => {
+  const server = fakeServer();
+  const { comp, settle } = loadFront(server);
+  comp.componentDidMount();
+  await settle();
+  comp.renderVals().onStart();
+  await settle();
+  const pick = comp.renderVals().options[0].pick;
+  pick(); pick();
+  await settle();
+  assert.equal(server.calls.filter((c) => c.path.endsWith('/actions')).length, 1);
+});
+
+test('front: sin red muestra "Reintentar" y reintentando sigue la misma partida', async () => {
+  const server = fakeServer();
+  const { comp, settle } = loadFront(server);
+  comp.componentDidMount();
+  await settle();
+  comp.renderVals().onStart();
+  await settle();
+  const runId = comp.state.runId;
+  server.fail('network');
+  comp.renderVals().options[0].pick();
+  await settle();
+  let vals = comp.renderVals();
+  assert.ok(vals.net.show && vals.net.hasRetry, 'aparece el aviso con Reintentar');
+  assert.ok(vals.view.isScenario, 'la partida sigue en la misma pantalla');
+  vals.net.retry();
+  await settle();
+  vals = comp.renderVals();
+  assert.ok(!vals.net.show);
+  assert.ok(vals.view.isToast, 'la jugada se aplicó');
+  assert.equal(comp.state.runId, runId);
+});
+
+test('front: si la partida avanzó en otra pestaña (409), se pone al día sin error', async () => {
+  const server = fakeServer();
+  const { comp, settle } = loadFront(server);
+  comp.componentDidMount();
+  await settle();
+  comp.renderVals().onStart();
+  await settle();
+  server.fail('conflict');
+  comp.renderVals().options[0].pick();
+  await settle();
+  const vals = comp.renderVals();
+  assert.ok(!vals.net.show);
+  assert.equal(comp.state.version, 1, 'tomó la versión del server');
+});
+
+test('front: al recargar retoma la partida guardada en sessionStorage', async () => {
+  const server = fakeServer();
+  const a = loadFront(server);
+  a.comp.componentDidMount();
+  await a.settle();
+  a.comp.renderVals().onStart();
+  await a.settle();
+  a.comp.renderVals().options[1].pick();
+  await a.settle();
+  // recargar la página: otra instancia con el mismo storage
+  const b = loadFront(server, a.storage);
+  b.comp.componentDidMount();
+  await b.settle();
+  const vals = b.comp.renderVals();
+  assert.ok(vals.isGame && vals.view.isToast, 'vuelve a la misma pantalla');
+  assert.equal(b.comp.state.runId, a.comp.state.runId);
+  assert.equal(b.comp.state.version, a.comp.state.version);
+});

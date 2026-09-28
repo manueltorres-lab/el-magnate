@@ -7,7 +7,7 @@
     "node": ">=22.18"
   },
   "scripts": {
-    "test": "npm run typecheck && node scripts/sync-engine.mjs --check && node --test --test-reporter=spec engine/test/*.test.ts",
+    "test": "npm run typecheck && node scripts/sync-engine.mjs --check && node scripts/build-web.mjs --check && node --test --test-reporter=spec engine/test/*.test.ts web/test/*.test.ts",
     "typecheck": "tsc --noEmit -p .",
     "gen:data": "node scripts/extract-data.mjs",
     "sim": "node sim/run.ts",
@@ -17,7 +17,8 @@
     "test:api": "node scripts/sync-engine.mjs --check && node --test --test-reporter=spec --test-concurrency=1 supabase/tests/*.test.ts",
     "check:anon": "node scripts/check-anon.ts",
     "db:local": "scripts/pg-local.sh start",
-    "deno:check": "cd supabase/functions/api && deno check index.ts"
+    "deno:check": "cd supabase/functions/api && deno check index.ts",
+    "build:web": "node scripts/build-web.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
