@@ -51,6 +51,27 @@ Notas:
   `incomeBase`, `minigame`. Si no está, se usan los valores del motor.
 - El front solo necesita la URL del proyecto y la **anon key** (son públicas).
 
+### Estado del proyecto de prueba (28/09/2026)
+
+`el-magnate-dev` = `esluocwhxooyuwcyfntd` (org LB Finanzas, São Paulo, plan free).
+Creado por la API; la contraseña de la base no la tiene nadie (si hace falta, se
+resetea en *Project Settings → Database*). Hecho:
+
+- usuarios anónimos activados y Data API apagada (`db_schema` vacío), por la API;
+- migración `20260925120000_game` aplicada y registrada en
+  `supabase_migrations.schema_migrations`;
+- `SERVER_SECRET` y `ALLOWED_ORIGINS=http://localhost:5173` cargados;
+- función `api` desplegada;
+- `check:anon`: 64 intentos bloqueados, la API sin token responde 401;
+- partida completa contra la API desplegada (usuario anónimo real, CORS, 409 después
+  de terminar, desbloqueo en `/me`).
+
+**Ojo desde la sesión en la nube:** el puerto de Postgres está bloqueado (solo sale
+HTTPS), así que `supabase db push` no conecta. Las migraciones se aplican por la
+Management API (`POST /v1/projects/<ref>/database/query`, dentro de un `begin/commit`
+e insertando la versión en `supabase_migrations.schema_migrations`), y
+`functions deploy` va con `--use-api`.
+
 ## 3. Al proyecto real
 
 Los mismos pasos del punto 2 con `--project-ref ayyfmyixljjtxkfvyhsz`, **después de que
