@@ -107,7 +107,8 @@ export function createApp(deps: AppDeps) {
       return c.json(e.toJSON(), e.status as 400);
     }
     // sin detalles al cliente ni datos sensibles en el log
-    console.error('api error:', (err as Error)?.name, (err as Error)?.message);
+    // solo el tipo y el código: el mensaje puede traer datos de conexión
+    console.error('api error:', (err as Error)?.name, (err as { code?: string })?.code ?? '');
     if (globalThis.process?.env?.API_DEBUG) console.error((err as Error)?.stack);
     return c.json(new ApiError('internal').toJSON(), 500);
   });

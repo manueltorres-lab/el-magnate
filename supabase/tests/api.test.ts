@@ -101,7 +101,8 @@ describe('partidas', () => {
     assert.equal(run.actions_count, version);
     let st = E.createRun({ code: run.seed_code, seeds: await E.deriveSeeds(SECRET, run.seed_code, 12) });
     for (const a of acts) st = E.step(st, a.action);
-    assert.equal(JSON.stringify(st), JSON.stringify(run.state));
+    // jsonb reordena las claves: se compara el contenido, no el texto
+    assert.deepStrictEqual(run.state, JSON.parse(JSON.stringify(st)));
     assert.equal(run.final_key, st.titleKey);
     assert.equal(run.final_capital, Math.round(st.capital));
     // y terminada no acepta más acciones

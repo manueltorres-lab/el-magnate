@@ -123,7 +123,12 @@ export function toView(s: RunState, cfgIn: Partial<Config> = {}): GameView {
   const cfg = resolveConfig(cfgIn);
   const phase = phaseOf(s);
 
-  const positions = (Object.entries(s.tagCounts) as [Tag, number][])
+  // Los empates se ordenan por el primer pick de cada perfil: es el orden de inserción en
+  // tagCounts que usa el original, y no depende del orden de claves (jsonb lo reordena).
+  const firstSeen: Tag[] = [];
+  for (const h of s.history) if (!firstSeen.includes(h.tag)) firstSeen.push(h.tag);
+  const positions = firstSeen
+    .map((tag) => [tag, s.tagCounts[tag] || 0] as [Tag, number])
     .sort((a, b) => b[1] - a[1]).slice(0, 4).map(([tag, n]) => ({ tag, n }));
 
   let current: GameView['current'] = null;

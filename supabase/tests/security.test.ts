@@ -51,7 +51,7 @@ test('ningún privilegio de anon/authenticated sobre el schema game', async () =
   const grants = await s`
     select grantee, table_name, privilege_type from information_schema.role_table_grants
     where table_schema = 'game' and grantee in ('anon', 'authenticated', 'PUBLIC')`;
-  assert.deepEqual(grants, []);
+  assert.equal(grants.length, 0, JSON.stringify(grants));
   const [u] = await s`select has_schema_privilege('anon', 'game', 'USAGE') as anon, has_schema_privilege('authenticated', 'game', 'USAGE') as auth`;
   assert.deepEqual({ ...u }, { anon: false, auth: false });
 });

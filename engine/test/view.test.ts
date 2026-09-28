@@ -101,3 +101,26 @@ test('toView: la 4ª opción aparece con la cabeza quemada o clara, sin rangos',
   assert.equal(v.current!.options.length, s.current.options.length);
   assert.ok(v.current!.options.every((o) => !('min' in o) && !('max' in o)));
 });
+
+test('toView y step no dependen del orden de claves del estado (jsonb las reordena)', async () => {
+  const rand = mulberry32(5);
+  const k = await E.importSecret(TEST_SECRET);
+  const reverseKeys = (x: unknown): unknown => {
+    if (Array.isArray(x)) return x.map(reverseKeys);
+    if (x && typeof x === 'object') return Object.fromEntries(Object.entries(x).reverse().map(([a, b]) => [a, reverseKeys(b)]));
+    return x;
+  };
+  for (let g = 0; g < 50; g++) {
+    const code = codeFrom(rand);
+    let s = E.createRun({ code, seeds: await E.deriveSeeds(k, code, 12) });
+    while (s.screen !== 'result') {
+      const shuffled = reverseKeys(s) as E.RunState;
+      assert.deepStrictEqual(E.toView(shuffled), E.toView(s));
+      const acts = E.validActions(E.toView(s));
+      const a = acts[Math.floor(rand() * acts.length)];
+      const next = E.step(s, a);
+      assert.deepStrictEqual(E.step(shuffled, a), next); // deepStrictEqual ignora el orden de claves
+      s = next;
+    }
+  }
+});

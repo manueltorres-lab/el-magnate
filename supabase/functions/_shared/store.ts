@@ -90,7 +90,7 @@ export function pgStore(sql: Sql): Store {
         const [row] = await tx.unsafe(
           `insert into game.runs (player_id, seed_code, ranked, state, config)
            values ($1, $2, $3, $4::jsonb, $5::jsonb) returning ${RUN_COLS}`,
-          [playerId, seedCode, ranked, JSON.stringify(state), JSON.stringify(config)],
+          [playerId, seedCode, ranked, tx.json(state as never), tx.json(config as never)] as never[],
         );
         return row as unknown as RunRow;
       }) as RunRow;
@@ -120,12 +120,12 @@ export function pgStore(sql: Sql): Store {
                     when actions_count + 1 > $10 then 'demasiadas_acciones' end)
            where id = $1 and player_id = $2 and version = $3 and status = 'active'
            returning version`,
-          [id, playerId, version, JSON.stringify(state), !!finish, finish?.key ?? null,
-            finish?.capital ?? null, finish?.quiebra ?? null, minSeconds, maxActions],
+          [id, playerId, version, tx.json(state as never), !!finish, finish?.key ?? null,
+            finish?.capital ?? null, finish?.quiebra ?? null, minSeconds, maxActions] as never[],
         );
         if (rows.length === 0) return false;
         await tx.unsafe(`insert into game.run_actions (run_id, seq, action) values ($1, $2, $3::jsonb)`,
-          [id, version + 1, JSON.stringify(action)]);
+          [id, version + 1, tx.json(action as never)] as never[]);
         if (finish) {
           await tx`insert into game.unlocks (player_id, final_key, first_run)
                    values (${playerId}, ${finish.key}, ${id}) on conflict do nothing`;
