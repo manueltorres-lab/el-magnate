@@ -74,5 +74,20 @@ e insertando la versión en `supabase_migrations.schema_migrations`), y
 
 ## 3. Al proyecto real
 
-Los mismos pasos del punto 2 con `--project-ref ayyfmyixljjtxkfvyhsz`, **después de que
-lo confirmes**, y con el dominio final del juego en `ALLOWED_ORIGINS`.
+Los mismos pasos del punto 2 con `--project-ref ayyfmyixljjtxkfvyhsz`.
+
+### Estado del proyecto real (28/09/2026)
+
+Hecho, con el OK de la persona:
+
+- usuarios anónimos activados (estaban apagados), Turnstile activo, Data API apagada;
+- migración `20260925120000_game` aplicada y registrada;
+- `SERVER_SECRET` propio (distinto del de prueba) y `ALLOWED_ORIGINS=http://localhost:5173`;
+- función `api` desplegada;
+- `check:anon`: 32 intentos con la anon key bloqueados, la API sin token responde 401.
+  La parte de "usuario anónimo logueado" no corre acá porque Turnstile pide un token de
+  CAPTCHA; se verificó en el proyecto de prueba, que tiene el mismo esquema.
+
+Pendiente: cuando exista el dominio del juego, agregarlo a `ALLOWED_ORIGINS`
+(`npx supabase secrets set --project-ref ayyfmyixljjtxkfvyhsz ALLOWED_ORIGINS="https://<dominio>,http://localhost:5173"`).
+El front va a necesitar la Site Key de Turnstile para `signInAnonymously`.

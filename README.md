@@ -10,7 +10,7 @@ manda intenciones ("elegí la opción 2", "me planto"). El plan completo está e
 | Fase | Qué | Estado |
 |---|---|---|
 | 1 | Motor puro + tests + simulación de balance | ✅ Hecha: ver abajo |
-| 2 | Supabase + API | ✅ Desplegada y verificada en el proyecto de prueba. Falta el real (con tu OK): ver [`DEPLOY.md`](DEPLOY.md) |
+| 2 | Supabase + API | ✅ Desplegada en prueba y en el real. Falta el dominio del juego en el CORS: ver [`DEPLOY.md`](DEPLOY.md) |
 | 3 | Front conectado | Pendiente |
 | 4 | Ranking, colección, duelos reales | Pendiente |
 | 5 | Imagen de la story en el server (opcional) | Pendiente |
