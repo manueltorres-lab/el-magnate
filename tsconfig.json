@@ -24,6 +24,7 @@
     "sim/**/*.ts",
     "scripts/**/*.mjs",
     "supabase/functions/_shared/**/*.ts",
-    "supabase/tests/**/*.ts"
+    "supabase/tests/**/*.ts",
+    "scripts/**/*.ts"
   ]
 }

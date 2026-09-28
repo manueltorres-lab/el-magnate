@@ -10,7 +10,7 @@ manda intenciones ("elegí la opción 2", "me planto"). El plan completo está e
 | Fase | Qué | Estado |
 |---|---|---|
 | 1 | Motor puro + tests + simulación de balance | ✅ Hecha: ver abajo |
-| 2 | Supabase + API | 🚧 En curso: ver "Dónde quedó la Fase 2" |
+| 2 | Supabase + API | ✅ Código y tests listos. Falta el deploy al proyecto de prueba: ver [`DEPLOY.md`](DEPLOY.md) |
 | 3 | Front conectado | Pendiente |
 | 4 | Ranking, colección, duelos reales | Pendiente |
 | 5 | Imagen de la story en el server (opcional) | Pendiente |
@@ -98,40 +98,61 @@ Qué cubren:
 - **Código de partida**: `mkCode()` usa `crypto.getRandomValues` (el original usaba
   `Math.random`). La semilla ya no se deriva del código solo: `u32(HMAC(SERVER_SECRET, code|n))`.
 
-## Dónde quedó la Fase 2 (para retomar)
+## Fase 2: API
 
-Hecho (sin commitear a Supabase todavía, nada desplegado):
+```
+supabase/
+  config.toml                       [functions.api] verify_jwt = true
+  migrations/20260925120000_game.sql schema `game`: tablas, RLS sin policies, revokes,
+                                    rate_hit, abandon_stale_runs, ranking_candidates
+  functions/api/index.ts            entrypoint (Deno.serve) + deno.json
+  functions/_shared/app.ts          Hono: todas las rutas del §6
+  functions/_shared/store.ts        SQL directo a Postgres (SUPABASE_DB_URL), control optimista
+  functions/_shared/auth.ts         valida el JWT con Supabase Auth → player_id
+  functions/_shared/engine/         COPIA de /engine (npm run sync:engine)
+  tests/                            integración, seguridad y prueba de humo en Deno
+```
 
-- `supabase/migrations/20260925120000_game.sql`: tablas del §7 en el schema `game`
-  (no expuesto), RLS sin policies, revokes, `rate_hit`, `abandon_stale_runs`, vista
-  `ranking_candidates`, siembra de `rareza`. **Aplica sin errores** en Postgres 16.
-- `supabase/functions/_shared/`: `app.ts` (Hono, todas las rutas del §6), `store.ts`
-  (SQL directo con `postgres`, control optimista en una transacción), `auth.ts`
-  (valida el JWT con Supabase Auth), `config.ts` (GAME_CONFIG), `errors.ts`.
-- `supabase/functions/api/index.ts` + `deno.json`: `deno check` pasa.
-- `scripts/sync-engine.mjs`: copia `/engine` a `_shared/engine` (el deploy solo sube
-  `supabase/functions`); con `--check` falla si la copia quedó vieja.
-- `scripts/pg-local.sh`: Postgres local descartable con un shim de Supabase
-  (`supabase/tests/supabase-shim.sql`) para probar sin Docker.
-- Tests escritos: `supabase/tests/api.test.ts` (partida completa por HTTP, doble envío,
-  dos pestañas, fuera de fase, partida ajena, duelo, $LBtag, ranking, rate limit, CORS,
-  reproducir una partida desde `run_actions`) y `supabase/tests/security.test.ts`.
+Rutas (todas bajo `/functions/v1/api`, todas con `Authorization: Bearer <access_token>`):
 
-Próximo paso inmediato: **los tests de la API todavía no pasan.** El primer error:
-`POST /api/runs` devuelve 500 porque `toView` recibe un `state` que no es el objeto
-(`Object.entries(undefined)` en `view.ts`). Casi seguro es cómo vuelve el `jsonb`
-insertado con `tx.unsafe(..., JSON.stringify(state))::jsonb` en `store.ts`
-(`createRun`/`getRun`): revisar que `state`/`config` lleguen como objeto (usar
-`sql.json(...)` o parsear si vienen como string). Para ver el stack: `API_DEBUG=1`.
+| Ruta | Qué hace |
+|---|---|
+| `POST /api/runs` `{duelo?}` | Crea partida. Sin duelo el código lo genera el server. Abandona la activa anterior. |
+| `GET /api/runs/:id` | Retoma (recarga de página). 404 si no es tuya. |
+| `POST /api/runs/:id/actions` `{version, action}` | Aplica una acción. 409 si la versión no coincide o la acción no corresponde. |
+| `GET /api/me` | `{playerId, lbtag, unlocked}` |
+| `PUT /api/me/lbtag` `{lbtag}` | Valida formato (3–20, `a-z0-9._`) y unicidad. |
+| `GET /api/ranking?by=rareza\|plata&period=semana\|historico` | Mejor partida por jugador; solo terminadas, sin duelo, sin flag, con $LBtag. |
+| `GET /api/duelos/:code` | Primer intento de cada jugador con ese código. |
 
-Después:
+Respuestas: `{runId?, version, status, view}`; errores `{error:{code, message}}` con
+mensajes en castellano. Anti-abuso: 30 partidas/hora por jugador y 120 por IP, 5
+acciones/segundo; partidas terminadas en menos de 40 s o con más de 200 acciones quedan
+marcadas (`flagged`) y fuera del ranking.
 
-1. Hacer pasar `node --test --test-concurrency=1 supabase/tests/*.test.ts` y sumarlo a
-   `npm test` (con `npm run sync:engine -- --check`).
-2. Smoke test del entrypoint en Deno contra la base local con un Auth falso.
-3. Script de chequeo con la anon key contra el proyecto real (select/insert en cada
-   tabla tiene que fallar).
-4. Con la persona: crear "el-magnate-dev", `npx supabase login` + `link`, cargar
-   `SERVER_SECRET` con `supabase secrets set` sin mostrarlo, `ALLOWED_ORIGINS`,
-   desactivar la Data API para `public`, y recién ahí migraciones + deploy al dev.
-   Preguntar antes de tocar el proyecto real `ayyfmyixljjtxkfvyhsz`.
+Tests (`npm run test:api`, levanta un Postgres local descartable con `scripts/pg-local.sh`):
+
+- **Integración**: partida completa por HTTP, recarga, doble envío, dos pestañas a la
+  vez (gana exactamente una), fuera de fase, payloads inválidos, campos extra que no
+  llegan a la base, partida ajena, una sola activa, duelo (mismos escenarios y mismo
+  resultado; cuenta solo el primer intento), $LBtag, ranking, rate limit, CORS, errores
+  internos sin detalles, y **reproducir una partida desde `run_actions`**. Ninguna
+  respuesta incluye campos prohibidos.
+- **Seguridad**: con los roles `anon` y `authenticated` falla todo select/insert/delete
+  y toda función; RLS activo y sin policies; cero privilegios sobre el schema.
+- **Deno**: corre el entrypoint real en Deno con un Auth falso: auth por supabase-js,
+  conexión con `postgres`, `GAME_CONFIG`, CORS, y que los secretos no salgan en los logs.
+- Contra el proyecto real: `npm run check:anon` (ver `DEPLOY.md`).
+
+Decisiones de la Fase 2:
+
+- **Sin Data API**: la función se conecta directo a Postgres; las tablas viven en el
+  schema `game`, que no se expone. Doble candado: RLS sin policies + `revoke`.
+- **El motor se copia** a `supabase/functions/_shared/engine` porque el deploy solo sube
+  `supabase/functions`. `npm test` falla si la copia quedó vieja.
+- **jsonb reordena las claves** de los objetos. El motor no depende de ese orden (hay un
+  test), y el panel "Tus posiciones" desempata por el primer pick de cada perfil, que es
+  el mismo orden que usaba el original.
+- **El ranking se calcula con una consulta** (mejor partida por jugador). La vista
+  materializada con `pg_cron`, el job de rareza y el abandono automático a las 24 h
+  quedan para la Fase 4 (la función `abandon_stale_runs` ya está).

@@ -1,0 +1,17 @@
+# Config del proyecto para la CLI de Supabase (npx supabase ...).
+# Lo que importa para el deploy es la sección [functions.api].
+project_id = "el-magnate"
+
+[api]
+# El schema `game` NO se expone por la Data API. Además, en el dashboard conviene
+# desactivar la Data API por completo (Settings → API) porque el juego no la usa.
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+
+[auth]
+enable_signup = true
+enable_anonymous_sign_ins = true
+
+[functions.api]
+# El gateway rechaza requests sin un JWT válido antes de que lleguen al código.
+verify_jwt = true

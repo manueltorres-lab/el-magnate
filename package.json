@@ -7,14 +7,17 @@
     "node": ">=22.18"
   },
   "scripts": {
-    "test": "node --test --test-reporter=spec engine/test/*.test.ts",
+    "test": "npm run typecheck && node scripts/sync-engine.mjs --check && node --test --test-reporter=spec engine/test/*.test.ts",
     "typecheck": "tsc --noEmit -p .",
     "gen:data": "node scripts/extract-data.mjs",
     "sim": "node sim/run.ts",
     "test:balance": "node --test --test-reporter=spec sim/*.test.ts",
-    "test:all": "npm run typecheck && npm test && npm run test:balance",
+    "test:all": "npm test && npm run test:api && npm run test:balance",
     "sync:engine": "node scripts/sync-engine.mjs",
-    "test:api": "node --test --test-reporter=spec --test-concurrency=1 supabase/tests/*.test.ts"
+    "test:api": "node scripts/sync-engine.mjs --check && node --test --test-reporter=spec --test-concurrency=1 supabase/tests/*.test.ts",
+    "check:anon": "node scripts/check-anon.ts",
+    "db:local": "scripts/pg-local.sh start",
+    "deno:check": "cd supabase/functions/api && deno check index.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
