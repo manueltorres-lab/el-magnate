@@ -24,6 +24,8 @@ function fakeServer() {
   const runs = new Map<string, { state: RunState; version: number }>();
   const unlocked = new Set<string>();
   let n = 0;
+  let tag: string | null = null;
+  let rareza: Json = { fuente: 'simulacion', partidas: 0, pct: {} };
   const calls: { method: string; path: string; body: Json }[] = [];
   let failNext: 'network' | 'conflict' | null = null;
   const reply = (status: number, json: unknown) => ({ ok: status < 400, status, json: async () => json });
@@ -38,7 +40,15 @@ function fakeServer() {
     const body = init.body ? JSON.parse(init.body) : null;
     calls.push({ method: init.method, path, body });
     if (init.method === 'GET' && path === '/me') return reply(200, { playerId: 'p', lbtag: null, unlocked: [...unlocked] });
-    if (init.method === 'PUT' && path === '/me/lbtag') return reply(200, { lbtag: body.lbtag.toLowerCase() });
+    if (init.method === 'PUT' && path === '/me/lbtag') { tag = body.lbtag.toLowerCase(); return reply(200, { lbtag: tag }); }
+    if (init.method === 'GET' && path === '/rareza') return reply(200, rareza);
+    if (init.method === 'GET' && path.startsWith('/ranking')) {
+      // 20 jugadores de relleno y, si ya tiene $LBtag y terminó, la partida propia en el puesto 17
+      const rows = Array.from({ length: 20 }, (_, i) => ({ pos: i + 1, lbtag: 'otro' + i, titleKey: 'magnate', capital: 9e8 - i * 1e7, rareza: 7.1, mine: false }));
+      const fin = [...runs.values()].find((r) => r.state.screen === 'result');
+      if (tag && fin) rows.splice(16, 1, { pos: 17, lbtag: tag, titleKey: fin.state.titleKey!, capital: Math.round(fin.state.capital), rareza: 1, mine: true });
+      return reply(200, { by: 'plata', period: path.includes('semana') ? 'semana' : 'historico', rows });
+    }
     if (init.method === 'POST' && path === '/runs') {
       const code = body.duelo || mkCode();
       const seeds = await deriveSeeds('secreto-de-test-con-mas-de-32-caracteres', code, 12);
@@ -58,7 +68,7 @@ function fakeServer() {
     if (run.state.screen === 'result') unlocked.add(run.state.titleKey!);
     return reply(200, { version: run.version, status: status(), view: toView(run.state) });
   }
-  return { fetch, calls, fail: (k: typeof failNext) => { failNext = k; } };
+  return { fetch, calls, fail: (k: typeof failNext) => { failNext = k; }, setRareza: (r: Json) => { rareza = r; } };
 }
 
 /** Carga config.js, data.js y app.js en un contexto aislado, con un setState sincrónico. */
@@ -233,4 +243,35 @@ test('front: al recargar retoma la partida guardada en sessionStorage', async ()
   assert.ok(vals.isGame && vals.view.isToast, 'vuelve a la misma pantalla');
   assert.equal(b.comp.state.runId, a.comp.state.runId);
   assert.equal(b.comp.state.version, a.comp.state.version);
+});
+
+test('front: ranking real con tu fila resaltada, y rareza real en la colección y la carta', async () => {
+  const server = fakeServer();
+  server.setRareza({ fuente: 'real', partidas: 12345, pct: { imperio: 0.4, magnate: 6.5, constructor: 9.9 } });
+  const { comp, settle } = loadFront(server);
+  comp.componentDidMount();
+  await settle();
+  let vals = comp.renderVals();
+  assert.equal(vals.colNote, 'Los porcentajes salen de 12.345 partidas reales.');
+  // la colección sigue el orden de ORDEN_COL: servido, insomne, imperio…
+  assert.equal(vals.coleccion[2].pct, '0,4%');
+  // jugar hasta el final con la primera opción siempre
+  vals.onStart(); await settle();
+  for (let i = 0; i < 300 && !comp.renderVals().isResult; i++) { buttons(comp.renderVals())[0](); await settle(); }
+  vals = comp.renderVals();
+  assert.ok(vals.isResult);
+  const key = comp.state.view.final.titleKey;
+  if (key === 'magnate') assert.equal(vals.rarezaPct, '6,5');
+  assert.ok(vals.shareCopy.includes(String(comp.rarezaOf(key)).replace('.', ',') + '%'));
+  // sin $LBtag: 13 filas de otros
+  assert.equal(vals.rankingPlata.length, 13);
+  assert.equal(vals.rankNote, 'Cuenta la mejor partida de cada $LBtag. Las partidas de duelo no suman.');
+  // con $LBtag: la propia aparece al final, con su puesto real y resaltada
+  comp.setState({ lbtag: 'Yo.Mismo' });
+  comp.renderVals().onSaveTag(); await settle();
+  vals = comp.renderVals();
+  const last = vals.rankingPlata[vals.rankingPlata.length - 1];
+  assert.equal(vals.rankingPlata.length, 14);
+  assert.deepEqual([last.pos, last.tag, last.tagColor], ['17', '$yo.mismo', '#73ffa1']);
+  assert.equal(vals.rankingHist.length, 14);
 });

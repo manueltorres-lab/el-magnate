@@ -82,6 +82,15 @@ const startBtn = '>Empezar la partida</button>';
 if (!page.includes(startBtn)) throw new Error('No encontré el botón de empezar');
 page = page.replace(startBtn, '>{{ startLabel }}</button>');
 
+// Fase 4: el ranking y la rareza son reales; las notas al pie dejan de decir "de ejemplo"
+for (const [from, to] of [
+  ['Tablas ilustrativas. Los $LBtag que ves son de ejemplo.', '{{ rankNote }}'],
+  ['Los porcentajes salen de simular 7.000 partidas.', '{{ colNote }}'],
+]) {
+  if (!page.includes(from)) throw new Error('No encontré: ' + from);
+  page = page.replace(from, to);
+}
+
 const NET = `
 <sc-if value="{{ net.show }}">
   <div role="alert" style="position:fixed;left:16px;right:16px;bottom:16px;z-index:60;max-width:560px;margin:0 auto;display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:14px;border:1px solid rgba(255,138,155,.55);background:#2a1420;color:#fbfafd;font-family:'Plus Jakarta Sans',sans-serif;font-size:14.5px;line-height:1.4;box-shadow:0 12px 32px rgba(0,0,0,.45);animation:mgIn .25s ease;">

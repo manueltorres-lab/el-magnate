@@ -58,6 +58,7 @@ export interface Store {
   setLbtag(playerId: string, lbtag: string): Promise<boolean>;
   ranking(by: 'rareza' | 'plata', period: 'semana' | 'historico', limit: number): Promise<RankingRow[]>;
   duelo(code: string): Promise<DueloRow[]>;
+  rareza(): Promise<{ final_key: string; pct: number; sample: number }[]>;
 }
 
 export function connect(url: string): Sql {
@@ -152,7 +153,10 @@ export function pgStore(sql: Sql): Store {
 
     async ranking(by, period, limit) {
       // la mejor partida de cada jugador, según el criterio del ranking
-      const since = period === 'semana' ? sql`and finished_at > now() - interval '7 days'` : sql``;
+      // la tabla semanal arranca el lunes a las 00:00, hora argentina
+      const since = period === 'semana'
+        ? sql`and finished_at >= date_trunc('week', now() at time zone 'America/Argentina/Buenos_Aires') at time zone 'America/Argentina/Buenos_Aires'`
+        : sql``;
       const best = by === 'rareza'
         ? sql`order by player_id, rareza asc, final_capital desc, finished_at asc`
         : sql`order by player_id, final_capital desc, finished_at asc`;
@@ -180,6 +184,11 @@ export function pgStore(sql: Sql): Store {
         order by (status = 'finished' and not flagged) desc, final_capital desc nulls last, created_at asc
         limit 100`;
       return rows as unknown as DueloRow[];
+    },
+
+    async rareza() {
+      const rows = await sql`select final_key, pct::float8 as pct, sample from game.rareza order by final_key`;
+      return rows as unknown as { final_key: string; pct: number; sample: number }[];
     },
   };
 }

@@ -9,7 +9,7 @@ if (!url || !anon) {
   process.exit(2);
 }
 const TABLES = ['players', 'runs', 'run_actions', 'unlocks', 'rareza', 'rate_limits', 'ranking_candidates'];
-const FUNCS = ['rate_hit', 'abandon_stale_runs'];
+const FUNCS = ['rate_hit', 'abandon_stale_runs', 'recompute_rareza'];
 
 const problems: string[] = [];
 const ok = (label: string) => console.log('  ✔ bloqueado:', label);

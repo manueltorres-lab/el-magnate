@@ -20,20 +20,6 @@
     'Última. Acá se define si salís del estudio como el que sabía.',
   ];
   const SHOW_OK = ['El público estalla.', 'Aplauso cerrado en el estudio.', 'Se levantan de la silla.'];
-  // Fase 4: estos rankings pasan a salir de GET /api/ranking
-  const RANKING_HIST = [
-    {tag:'elmudo.99', cap:1184000000}, {tag:'sofi.pereyra', cap:926000000}, {tag:'tincho', cap:871500000},
-    {tag:'rocio.ok', cap:748000000}, {tag:'juanma.f', cap:639000000}, {tag:'eltano', cap:582000000},
-    {tag:'la.colo', cap:510500000}, {tag:'nacho.dv', cap:447000000}, {tag:'m.ferrero', cap:396000000},
-    {tag:'caro.b', cap:341500000}, {tag:'agus.tini', cap:298000000}, {tag:'flor.ok', cap:261000000},
-    {tag:'vale.mm', cap:224000000},
-  ];
-  const RANKING_PLATA = [
-    {tag:'tincho', cap:418000000}, {tag:'sofi.pereyra', cap:294000000}, {tag:'eltano', cap:162000000},
-    {tag:'nacho.dv', cap:110500000}, {tag:'caro.b', cap:88000000}, {tag:'flor.ok', cap:74200000},
-    {tag:'juanma', cap:61500000}, {tag:'m.ferrero', cap:49800000}, {tag:'seba.r', cap:44100000},
-    {tag:'lu.gimenez', cap:38600000}, {tag:'agus.tini', cap:35200000}, {tag:'vale.mm', cap:31000000},
-  ];
   const STAKE_LABELS = ['Poco', 'Medio', 'Fuerte'];
   const START_CAPITAL = 500000;
   const RULETA_COLOR = (m) => m === 0 ? '#4a1c28' : (m < 1 ? '#3a2b52' : (m >= 3 ? '#3fd47c' : '#2f7d52'));
@@ -147,6 +133,7 @@
       runId:null, version:0, view:null, starting:false, net:null,
       anim:null, wheelAngle:0,
       tab:'carta', rankTab:'semanal', lbtag:'', tagSaved:false, unlocked:[], storyOpen:false,
+      ranking: { semana:null, historico:null }, rareza:null,
       copied:false, dueloCopied:false, duelo:null,
     };
     busy = false;
@@ -170,6 +157,7 @@
     componentWillUnmount() { this.stopAnim(); }
 
     async boot(localTag) {
+      api('GET', '/rareza').then((r) => this.setState({ rareza: r })).catch(() => {});
       try {
         const me = await api('GET', '/me');
         this.setState((s) => ({
@@ -189,13 +177,25 @@
     applyRun(r) {
       const finished = r.status === 'finished' || r.view.screen === 'result';
       const patch = { runId: r.runId || this.state.runId, version: r.version, view: r.view, screen: finished ? 'result' : 'game', net: null };
-      if (finished && r.view.final) patch.unlocked = [...new Set([...this.state.unlocked, r.view.final.titleKey])];
+      if (finished && r.view.final) {
+        patch.unlocked = [...new Set([...this.state.unlocked, r.view.final.titleKey])];
+        if (this.state.screen !== 'result') this.loadRanking();
+      }
       if (!r.view.mini) patch.wheelAngle = 0;
       this.setState(patch);
     }
 
     showError(e, retry) {
       this.setState({ net: { msg: e.message, retry: retry || null } });
+    }
+
+    /** Trae las dos tablas (semanal e histórica). Si falla, quedan como estaban. */
+    loadRanking() {
+      for (const period of ['semana', 'historico']) {
+        api('GET', '/ranking?by=plata&period=' + period)
+          .then((r) => this.setState((s) => ({ ranking: { ...s.ranking, [period]: r.rows } })))
+          .catch(() => {});
+      }
     }
 
     start = async () => {
@@ -309,6 +309,7 @@
         const r = await api('PUT', '/me/lbtag', { lbtag: t });
         store.set('localStorage', 'elmagnate.lbtag', r.lbtag);
         this.setState({ lbtag: r.lbtag, tagSaved: true, net: null });
+        this.loadRanking();
       } catch (e) {
         this.showError(e, e.code === 'network' ? this.saveTag : null);
       } finally { this.busy = false; }
@@ -336,10 +337,16 @@
       setTimeout(() => this.setState({ copied: false }), 2200);
     };
 
+    /** rareza de un final: la real del server si ya la trajo, si no la simulada */
+    rarezaOf(key) {
+      const r = this.state.rareza;
+      return r && r.pct && r.pct[key] != null ? r.pct[key] : RAREZA[key];
+    }
+
     shareText() {
       const f = this.view().final;
       if (!f) return '';
-      return 'Me salió "' + f.title + '" ' + f.icon + '\nSolo el ' + String(f.rareza).replace('.', ',')
+      return 'Me salió "' + f.title + '" ' + f.icon + '\nSolo el ' + String(this.rarezaOf(f.titleKey)).replace('.', ',')
         + '% de los jugadores termina acá.\n¿Vos qué tan lejos llegás?\n\nEl Magnate · el simulador de LB Finanzas';
     }
 
@@ -624,7 +631,7 @@
 
       const f = v.final;
       const tKey = f ? f.titleKey : null;
-      const rareza = f ? f.rareza : 0;
+      const rareza = f ? this.rarezaOf(f.titleKey) : 0;
       const deltas = v.history.map((h) => h.delta);
       const best = deltas.length ? Math.max(...deltas) : 0;
       const worst = deltas.length ? Math.min(...deltas) : 0;
@@ -637,11 +644,14 @@
       const fullPath = v.history.map((h) => ({
         age:String(18 + h.round*2), icon:h.icon, label:h.label,
         delta:fmt(h.delta), color: h.delta>=0 ? GREEN : RED}));
-      const ranking = (base) => {
-        const mios = s.tagSaved && s.lbtag.trim() && s.screen==='result'
-          ? [{tag:s.lbtag.trim(), cap:v.capital, mine:true}] : [];
-        return [...base, ...mios].sort((a, b) => b.cap - a.cap).slice(0, 13).map((r, i) => ({
-          pos: String(i+1).padStart(2, '0'), tag: '$' + r.tag, amount: fmt(r.cap),
+      // las 13 primeras de cada tabla; si tu mejor partida está más abajo, aparece al final
+      const ranking = (period) => {
+        const rows = s.ranking[period] || [];
+        const top = rows.slice(0, 13);
+        const mine = rows.find((r) => r.mine);
+        if (mine && !top.includes(mine)) top.push(mine);
+        return top.map((r) => ({
+          pos: String(r.pos).padStart(2, '0'), tag: '$' + r.lbtag, amount: fmt(r.capital),
           rowStyle:'display:grid;grid-template-columns:auto 1fr auto;gap:11px;align-items:center;padding:12px 16px;border-top:1px solid rgba(244,233,254,.08);'
             + (r.mine ? 'background:rgba(115,255,161,.09);' : ''),
           tagColor: r.mine ? '#73ffa1' : 'rgba(244,233,254,.82)',
@@ -684,8 +694,14 @@
             + ';font-family:\'Plus Jakarta Sans\',sans-serif;font-size:13px;font-weight:700;cursor:pointer;',
           go: () => this.setState({rankTab:id}),
         })),
-        rankingHist: ranking(RANKING_HIST),
-        rankingPlata: ranking(RANKING_PLATA),
+        rankingHist: ranking('historico'),
+        rankingPlata: ranking('semana'),
+        rankNote: (() => {
+          const rows = s.ranking[s.rankTab === 'historico' ? 'historico' : 'semana'];
+          if (!rows) return 'Cargando la tabla…';
+          if (!rows.length) return 'Todavía no hay nadie en esta tabla. Poné tu $LBtag y entrá primero.';
+          return 'Cuenta la mejor partida de cada $LBtag. Las partidas de duelo no suman.';
+        })(),
         dots, spark, meters, positions, hasPositions: positions.length>0,
         alerta, cunaBanner: !!v.cuna,
         recent, hasMoves: recent.length>0,
@@ -697,7 +713,7 @@
             + ';background:' + (s.tab===id ? 'rgba(115,255,161,.13)' : 'transparent')
             + ';color:' + (s.tab===id ? '#73ffa1' : 'rgba(244,233,254,.6)')
             + ';font-family:\'Plus Jakarta Sans\',sans-serif;font-size:14px;font-weight:700;cursor:pointer;',
-          go: () => this.setState({tab:id}),
+          go: () => { this.setState({tab:id}); if (id === 'ranking') this.loadRanking(); },
         })),
         rarezaPct: String(rareza).replace('.', ','),
         rarezaBar: 'display:block;height:100%;width:' + Math.max(2, Math.min(100, rareza*2.2)) + '%;background:#73ffa1;border-radius:99px;',
@@ -740,7 +756,7 @@
           return {
             icon: got ? tt.icon : '🔒',
             title: got ? tt.title : 'Sin descubrir',
-            pct: String(RAREZA[k]).replace('.', ',') + '%',
+            pct: String(this.rarezaOf(k)).replace('.', ',') + '%',
             style: 'display:flex;flex-direction:column;gap:5px;padding:13px 12px;border-radius:13px;border:1px solid '
               + (got ? (k===tKey ? 'rgba(115,255,161,.55)' : 'rgba(244,233,254,.16)') : 'rgba(244,233,254,.08)')
               + ';background:' + (got ? (k===tKey ? 'rgba(115,255,161,.1)' : 'rgba(0,0,0,.24)') : 'rgba(0,0,0,.12)') + ';',
@@ -749,6 +765,9 @@
           };
         }),
         colCount: s.unlocked.length + '/' + ORDEN_COL.length,
+        colNote: s.rareza && s.rareza.fuente === 'real'
+          ? 'Los porcentajes salen de ' + s.rareza.partidas.toLocaleString('es-AR') + ' partidas reales.'
+          : 'Los porcentajes salen de simular 7.000 partidas.',
         title: f ? { title: f.title, icon: f.icon, blurb: f.blurb } : { title:'', icon:'', blurb:'' },
         finalStats, fullPath,
         path: v.history.map((h) => ({icon:h.icon})),

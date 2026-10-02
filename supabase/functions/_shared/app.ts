@@ -228,6 +228,17 @@ export function createApp(deps: AppDeps) {
     });
   });
 
+  // rareza de cada final: simulada hasta que el job diario tenga muestra real suficiente
+  app.get('/rareza', async (c) => {
+    const rows = await store.rareza();
+    const partidas = Math.max(0, ...rows.map((r) => r.sample));
+    return c.json({
+      fuente: partidas > 0 ? 'real' : 'simulacion',
+      partidas,
+      pct: Object.fromEntries(rows.map((r) => [r.final_key, r.pct])),
+    });
+  });
+
   app.get('/duelos/:code', async (c) => {
     const code = cleanCode(c.req.param('code'));
     if (!code) throw new ApiError('bad_request', 'Ese código de duelo no es válido.');

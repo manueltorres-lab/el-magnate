@@ -114,3 +114,16 @@ template, fuentes, logo y runtime, así se ve idéntica). Se escriben a mano sol
    `npx supabase secrets set --project-ref ayyfmyixljjtxkfvyhsz ALLOWED_ORIGINS="https://el-magnate.pages.dev,http://localhost:5173"`
 5. Dominio propio (ej. `magnate.lbfinanzas.com`): en el proyecto de Pages → *Custom domains*,
    y repetir los pasos 3 y 4 con ese dominio.
+
+## 5. Fase 4 (desplegada en prueba y en el real, 02/10/2026)
+
+- Migración `20261002120000_fase4`: función `game.recompute_rareza(min_muestra)` (2.000
+  partidas por defecto), índice del ranking semanal y dos tareas de **pg_cron**:
+  `magnate-rareza` (todos los días 06:17 UTC = 03:17 en Argentina) y
+  `magnate-abandonadas` (cada hora, marca como abandonadas las partidas sin acciones por 24 h).
+- API: `GET /api/rareza` → `{ fuente: 'simulacion' | 'real', partidas, pct: {final: %} }`.
+  La tabla semanal (`period=semana`) arranca el lunes 00:00 hora argentina.
+- Front: las tablas de Ranking salen de `GET /api/ranking?by=plata` (semanal e histórica);
+  la colección y la carta usan la rareza real cuando el job ya la calculó.
+- Partidas de menos de 40 s quedan marcadas y fuera del ranking (anti-bots).
+- Ver las tareas: `select * from cron.job;` · últimas corridas: `select * from cron.job_run_details order by start_time desc limit 10;`

@@ -306,6 +306,61 @@ describe('$LBtag y ranking', () => {
   });
 });
 
+describe('Fase 4: tabla semanal y rareza real', () => {
+  test('la tabla semanal arranca el lunes (hora argentina); la histórica no se reinicia', async () => {
+    const s = db();
+    const u = newUser();
+    await call(app, 'PUT', '/me/lbtag', u, { lbtag: 'semana.pasada' });
+    // terminada un minuto antes del último lunes 00:00 en Buenos Aires
+    await s`
+      insert into game.runs (player_id, seed_code, ranked, status, state, config, final_key, final_capital, finished_at)
+      values (${u.slice(5)}, 'MGN-BBBBB', true, 'finished', '{}'::jsonb, '{}'::jsonb, 'magnate', 777000000,
+        (date_trunc('week', now() at time zone 'America/Argentina/Buenos_Aires') at time zone 'America/Argentina/Buenos_Aires') - interval '1 minute')`;
+    const tags = async (period: string) =>
+      (await call(app, 'GET', `/ranking?by=plata&period=${period}`, u)).json.rows.map((x: { lbtag: string }) => x.lbtag);
+    assert.ok(!(await tags('semana')).includes('semana.pasada'));
+    assert.ok((await tags('historico')).includes('semana.pasada'));
+  });
+
+  test('GET /rareza: simulada hasta que el job tiene muestra, después la real', async () => {
+    const s = db();
+    const t = newUser();
+    const antes = await call(app, 'GET', '/rareza', t);
+    assert.equal(antes.status, 200);
+    assert.equal(antes.json.fuente, 'simulacion');
+    assert.equal(antes.json.pct.imperio, 0.7);
+    assert.equal(Object.keys(antes.json.pct).length, 19);
+    const backup = await s`select final_key, pct, sample from game.rareza`;
+    try {
+      // sin muestra suficiente no toca nada
+      const [{ n: sinTocar }] = await s`select game.recompute_rareza(1000000) as n`;
+      assert.equal(sinTocar, 0);
+      assert.equal((await call(app, 'GET', '/rareza', t)).json.fuente, 'simulacion');
+      const [{ n }] = await s`select game.recompute_rareza(1) as n`;
+      const [{ total }] = await s`select count(*)::int as total from game.runs where status = 'finished' and not flagged`;
+      assert.equal(n, total);
+      const r = (await call(app, 'GET', '/rareza', t)).json;
+      assert.equal(r.fuente, 'real');
+      assert.equal(r.partidas, total);
+      const [{ magnate }] = await s`select count(*)::int as magnate from game.runs where status = 'finished' and not flagged and final_key = 'magnate'`;
+      assert.equal(r.pct.magnate, Math.max(0.1, Math.round(1000 * magnate / total) / 10));
+      for (const v of Object.values(r.pct)) assert.ok((v as number) >= 0.1);
+    } finally {
+      for (const b of backup) await s`update game.rareza set pct = ${b.pct}, sample = ${b.sample} where final_key = ${b.final_key}`;
+    }
+  });
+
+  test('anon y authenticated no pueden correr el recálculo', async () => {
+    const s = db();
+    for (const role of ['anon', 'authenticated']) {
+      await assert.rejects(s.begin(async (tx) => {
+        await tx.unsafe(`set local role ${role}`);
+        await tx`select game.recompute_rareza(1)`;
+      }), role);
+    }
+  });
+});
+
 describe('anti-abuso y CORS', () => {
   test('rate limit de acciones y de partidas nuevas → 429', async () => {
     const a = makeApp({ limits: { actionsPerSecond: 2, runsPerHour: 3 } });
