@@ -63,6 +63,19 @@ const [logoUuid] = imgUuids;
 out.set('assets/lb-logo-blanco.svg', asset(logoUuid));
 page = page.split(`src="${logoUuid}"`).join('src="assets/lb-logo-blanco.svg"');
 
+// El template sale del .dc.html (ahí Design suma pantallas nuevas, como la del duelo), con la
+// misma codificación que aplica el bundler al publicar: los atributos en camelCase pasan a
+// sc-camel-*. Con el .dc.html de la versión publicada esto da exactamente su template.
+const dc = readFileSync(root + 'handoff/referencia/El Magnate.dc.html', 'utf8');
+const bodyOf = (h) => [h.indexOf('</helmet>') + '</helmet>'.length, h.indexOf('</x-dc>')];
+const encode = (s) => s.replace(/\s(on[A-Z]\w*|viewBox|preserveAspectRatio)=/g,
+  (_, a) => ' sc-camel-' + a.replace(/[A-Z]/g, (c) => '-' + c.toLowerCase()) + '=');
+{
+  const [a, b] = bodyOf(dc), [pa, pb] = bodyOf(page);
+  if (a < 9 || b < 0 || pa < 9 || pb < 0) throw new Error('No encontré el template en el .dc.html o en la versión publicada');
+  page = page.slice(0, pa) + encode(dc.slice(a, b)) + page.slice(pb);
+}
+
 // scripts: config y sesión, datos, lógica conectada y recién después el runtime (que arranca solo)
 page = page.replace(
   `<script src="${runtimeUuid}"></script>`,

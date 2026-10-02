@@ -26,6 +26,7 @@ function fakeServer() {
   let n = 0;
   let tag: string | null = null;
   let rareza: Json = { fuente: 'simulacion', partidas: 0, pct: {} };
+  let rivales: Json[] = [];
   const calls: { method: string; path: string; body: Json }[] = [];
   let failNext: 'network' | 'conflict' | null = null;
   const reply = (status: number, json: unknown) => ({ ok: status < 400, status, json: async () => json });
@@ -49,7 +50,27 @@ function fakeServer() {
       if (tag && fin) rows.splice(16, 1, { pos: 17, lbtag: tag, titleKey: fin.state.titleKey!, capital: Math.round(fin.state.capital), rareza: 1, mine: true });
       return reply(200, { by: 'plata', period: path.includes('semana') ? 'semana' : 'historico', rows });
     }
+    const codeOf = (id: string) => runs.get(id)!.state.challenge;
+    const dueloRes = (code: string) => {
+      const mios = [...runs.keys()].filter((id) => codeOf(id) === code).slice(0, 1).map((id) => {
+        const st = runs.get(id)!.state, fin = st.screen === 'result';
+        return { tag: tag ? '$' + tag : null, mine: true, status: fin ? 'finished' : 'active', icon: fin ? '★' : '', title: fin ? st.titleKey : '', amount: fin ? '$' + Math.round(st.capital) : '', cap: fin ? st.capital : -1 };
+      });
+      const all = [...rivales, ...mios].sort((a, b) => b.cap - a.cap);
+      let pos = 0;
+      return { code, rows: all.map(({ cap, ...r }) => ({ ...r, pos: r.status === 'finished' ? ++pos : null })) };
+    };
+    if (init.method === 'GET' && path.startsWith('/duelos/')) {
+      const code = path.slice(8);
+      if (![...runs.keys()].some((id) => codeOf(id) === code)) return reply(403, { error: { code: 'duelo_no_jugado', message: 'Jugá el duelo primero.' } });
+      return reply(200, dueloRes(code));
+    }
     if (init.method === 'POST' && path === '/runs') {
+      const prev = body.duelo && [...runs.keys()].find((id) => codeOf(id) === body.duelo);
+      if (prev) {
+        const r = runs.get(prev)!;
+        return reply(200, { alreadyPlayed: true, runId: prev, version: r.version, status: r.state.screen === 'result' ? 'finished' : 'active', view: toView(r.state), duelo: dueloRes(body.duelo) });
+      }
       const code = body.duelo || mkCode();
       const seeds = await deriveSeeds('secreto-de-test-con-mas-de-32-caracteres', code, 12);
       const id = 'run-' + ++n;
@@ -68,17 +89,18 @@ function fakeServer() {
     if (run.state.screen === 'result') unlocked.add(run.state.titleKey!);
     return reply(200, { version: run.version, status: status(), view: toView(run.state) });
   }
-  return { fetch, calls, fail: (k: typeof failNext) => { failNext = k; }, setRareza: (r: Json) => { rareza = r; } };
+  return { fetch, calls, fail: (k: typeof failNext) => { failNext = k; }, setRareza: (r: Json) => { rareza = r; }, setRivales: (r: Json[]) => { rivales = r; } };
 }
 
 /** Carga config.js, data.js y app.js en un contexto aislado, con un setState sincrónico. */
 const mem = (): Json => { const m = new Map(); return { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => m.set(k, v), removeItem: (k: string) => m.delete(k) }; };
 
-function loadFront(server: ReturnType<typeof fakeServer>, storage = { local: mem(), session: mem() }) {
+function loadFront(server: ReturnType<typeof fakeServer>, storage = { local: mem(), session: mem() }, search = '') {
   const timers: { fn: () => void; ms: number }[] = [];
   const ctx: Json = {
     console, JSON, Math, Object, Array, String, Number, Set, Map, Promise, Error, TypeError, URL, URLSearchParams, Date,
-    location: { hostname: 'localhost', href: 'http://localhost:5173/', search: '' },
+    location: { hostname: 'localhost', href: 'http://localhost:5173/' + search, search, pathname: '/' },
+    history: { replaceState: () => { ctx.location.search = ''; } },
     localStorage: storage.local, sessionStorage: storage.session, navigator: {},
     fetch: server.fetch,
     setTimeout: (fn: () => void, ms: number) => { timers.push({ fn, ms }); return timers.length; },
@@ -274,4 +296,63 @@ test('front: ranking real con tu fila resaltada, y rareza real en la colección 
   assert.equal(vals.rankingPlata.length, 14);
   assert.deepEqual([last.pos, last.tag, last.tagColor], ['17', '$yo.mismo', '#73ffa1']);
   assert.equal(vals.rankingHist.length, 14);
+});
+
+async function playToEnd(comp: Json, settle: () => Promise<void>) {
+  for (let i = 0; i < 300 && !comp.renderVals().isResult; i++) { buttons(comp.renderVals())[0](); await settle(); }
+  assert.ok(comp.renderVals().isResult, 'la partida terminó');
+}
+
+test('front: duelo — el creador ve quién jugó su partida; el retado ve su puesto; volver al link muestra los resultados', async () => {
+  const server = fakeServer();
+  // el creador: partida normal, al final "Quién jugó tu partida" vacío
+  const a = loadFront(server);
+  a.comp.componentDidMount(); await a.settle();
+  a.comp.renderVals().onStart(); await a.settle();
+  await playToEnd(a.comp, a.settle);
+  let d = a.comp.renderVals().duelo;
+  assert.equal(a.comp.renderVals().esDuelo, false);
+  assert.deepEqual([d.creador, d.empty, d.ready], [true, true, false]);
+  assert.equal(d.emptyTitle, 'Todavía nadie jugó tu partida.');
+  const code = a.comp.state.view.challenge;
+  assert.equal(d.code, code);
+
+  // el retado entra con ?duelo=: aviso en el inicio, juega y ve la tabla con su puesto
+  const server2 = fakeServer();
+  server2.setRivales([
+    { tag: '$sofi', mine: false, status: 'finished', icon: '👑', title: 'El Imperio', amount: '$999.999.999', cap: 1e12 },
+    { tag: null, mine: false, status: 'active', icon: '', title: '', amount: '', cap: -2 },
+  ]);
+  const b = loadFront(server2, undefined, '?duelo=' + code);
+  b.comp.componentDidMount(); await b.settle();
+  let vals = b.comp.renderVals();
+  assert.equal(vals.esDuelo, true);
+  assert.equal(vals.dueloCode, code);
+  vals.onStart(); await b.settle();
+  assert.equal(server2.calls.find((c) => c.path === '/runs')!.body.duelo, code);
+  await playToEnd(b.comp, b.settle);
+  vals = b.comp.renderVals();
+  d = vals.duelo;
+  assert.equal(vals.esDuelo, true);
+  assert.deepEqual([d.creador, d.ready, d.empty], [false, true, false]);
+  assert.deepEqual(d.rows.map((r: Json) => [r.posText, r.tagText, r.isActive]), [['01', '$sofi', false], ['02', 'Anónimo', false], ['—', 'Anónimo', true]]);
+  assert.equal(d.summary, 'Quedaste 2° de 2. Arriba de todo: $sofi con 👑 El Imperio.');
+  assert.ok(d.hasActive && d.hasAnon);
+  assert.equal(d.rows[1].tagColor, '#73ffa1');
+
+  // recarga con el mismo link: no arranca otra partida, muestra el resultado y la tabla
+  const c = loadFront(server2, undefined, '?duelo=' + code);
+  c.comp.componentDidMount(); await c.settle();
+  c.comp.renderVals().onStart(); await c.settle();
+  vals = c.comp.renderVals();
+  assert.ok(vals.isResult, 'va directo a los resultados');
+  assert.equal(vals.duelo.rows.length, 3);
+  assert.equal(server2.calls.filter((x) => x.path === '/runs').length, 2);
+
+  // "Jugar otra partida" después del duelo arranca una partida normal
+  vals.onRestart(); await c.settle();
+  vals = c.comp.renderVals();
+  assert.ok(vals.isStart && !vals.esDuelo);
+  vals.onStart(); await c.settle();
+  assert.equal(server2.calls.filter((x) => x.path === '/runs').pop()!.body.duelo, undefined);
 });

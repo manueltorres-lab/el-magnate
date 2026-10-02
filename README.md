@@ -12,7 +12,7 @@ manda intenciones ("elegí la opción 2", "me planto"). El plan completo está e
 | 1 | Motor puro + tests + simulación de balance | ✅ Hecha: ver abajo |
 | 2 | Supabase + API | ✅ Desplegada en prueba y en el real. Falta el dominio del juego en el CORS: ver [`DEPLOY.md`](DEPLOY.md) |
 | 3 | Front conectado | ✅ En `web/`, probado contra el proyecto de prueba. Falta publicarlo: ver [`DEPLOY.md`](DEPLOY.md) |
-| 4 | Ranking, colección, duelos reales | ✅ Ranking y rareza reales, tareas con pg_cron. Pendiente: pantalla de resultados del duelo |
+| 4 | Ranking, colección, duelos reales | ✅ Ranking y rareza reales, tareas con pg_cron, resultados del duelo (diseño de Design) |
 | 5 | Imagen de la story en el server (opcional) | Pendiente |
 
 ## Estructura

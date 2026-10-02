@@ -127,3 +127,15 @@ template, fuentes, logo y runtime, así se ve idéntica). Se escriben a mano sol
   la colección y la carta usan la rareza real cuando el job ya la calculó.
 - Partidas de menos de 40 s quedan marcadas y fuera del ranking (anti-bots).
 - Ver las tareas: `select * from cron.job;` · últimas corridas: `select * from cron.job_run_details order by start_time desc limit 10;`
+
+### Resultados del duelo (02/10/2026, desplegado en prueba y en el real)
+
+Diseño de Design en `handoff/referencia/El Magnate.dc.html` (§6 bis del README del handoff).
+`npm run build:web` ahora toma el template de ese `.dc.html` (codificado igual que el
+bundler; con el `.dc.html` anterior da exactamente la versión publicada).
+
+- `POST /api/runs { duelo }` con un código que el jugador ya jugó (o creó): no crea partida,
+  responde `{ alreadyPlayed: true, runId, version, status, view, duelo }`. Si su intento
+  estaba abandonado, lo reactiva para que lo termine (sigue siendo su primer intento).
+- `GET /api/duelos/:code` → `{ code, rows: [{ pos, tag, mine, status, icon, title, amount }] }`,
+  terminadas por capital → jugando → abandonadas. 403 si no lo jugó; 1 consulta cada 3 s.

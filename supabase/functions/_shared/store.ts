@@ -59,6 +59,10 @@ export interface Store {
   ranking(by: 'rareza' | 'plata', period: 'semana' | 'historico', limit: number): Promise<RankingRow[]>;
   duelo(code: string): Promise<DueloRow[]>;
   rareza(): Promise<{ final_key: string; pct: number; sample: number }[]>;
+  /** el primer intento del jugador con ese código (como retado o como creador), o null */
+  firstAttempt(code: string, playerId: string): Promise<RunRow | null>;
+  /** vuelve a activar una partida abandonada (y abandona la que estuviera activa) */
+  reactivate(id: string, playerId: string): Promise<RunRow | null>;
 }
 
 export function connect(url: string): Sql {
@@ -181,7 +185,11 @@ export function pgStore(sql: Sql): Store {
           where r.seed_code = ${code}
           order by r.player_id, r.created_at asc
         ) f
-        order by (status = 'finished' and not flagged) desc, final_capital desc nulls last, created_at asc
+        -- terminadas por capital (las marcadas como sospechosas al final de las terminadas),
+        -- después las que se están jugando y al final las abandonadas
+        order by case when status = 'finished' and not flagged then 0 when status = 'finished' then 1
+                      when status = 'active' then 2 else 3 end,
+                 final_capital desc nulls last, created_at asc
         limit 100`;
       return rows as unknown as DueloRow[];
     },
@@ -189,6 +197,23 @@ export function pgStore(sql: Sql): Store {
     async rareza() {
       const rows = await sql`select final_key, pct::float8 as pct, sample from game.rareza order by final_key`;
       return rows as unknown as { final_key: string; pct: number; sample: number }[];
+    },
+
+    async firstAttempt(code, playerId) {
+      const rows = await sql.unsafe(
+        `select ${RUN_COLS} from game.runs where seed_code = $1 and player_id = $2 order by created_at asc limit 1`,
+        [code, playerId]);
+      return (rows[0] as unknown as RunRow) ?? null;
+    },
+
+    async reactivate(id, playerId) {
+      return await sql.begin(async (tx) => {
+        await tx`update game.runs set status = 'abandoned' where player_id = ${playerId} and status = 'active' and id <> ${id}`;
+        const rows = await tx.unsafe(
+          `update game.runs set status = 'active', last_action_at = now()
+           where id = $1 and player_id = $2 and status = 'abandoned' returning ${RUN_COLS}`, [id, playerId]);
+        return (rows[0] as unknown as RunRow) ?? null;
+      }) as RunRow | null;
     },
   };
 }

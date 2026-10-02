@@ -210,17 +210,63 @@ describe('duelos', () => {
     const rb = await playOut(app, p2, b.json.runId, 0, b.json.view);
     assert.deepEqual({ ...rb.view, duelo: false }, ra.view);
 
-    // p2 lo rejuega: en la tabla del duelo cuenta solo su primer intento
+    // p2 vuelve a entrar con el link: no hay partida nueva, le devuelve su intento y la tabla
     const b2 = await call(app, 'POST', '/runs', p2, { duelo: code });
-    await playOut(app, p2, b2.json.runId, 0, b2.json.view, (x) => x[x.length - 1]);
+    assert.equal(b2.status, 200);
+    assert.equal(b2.json.alreadyPlayed, true);
+    assert.equal(b2.json.runId, b.json.runId);
+    assert.equal(b2.json.status, 'finished');
+    assert.equal(b2.json.duelo.code, code);
+    // el creador también: su partida (rankeada) cuenta como su intento
+    const a2 = await call(app, 'POST', '/runs', p1, { duelo: code });
+    assert.equal(a2.json.alreadyPlayed, true);
+    assert.equal(a2.json.runId, a.json.runId);
+
     const d = await call(app, 'GET', '/duelos/' + code, p1);
     assert.equal(d.status, 200);
     assert.equal(d.json.rows.length, 2);
     const mine = d.json.rows.find((r: { mine: boolean }) => r.mine);
     const theirs = d.json.rows.find((r: { mine: boolean }) => !r.mine);
-    assert.equal(mine.capital, ra.view.final!.capital);
-    assert.equal(theirs.capital, rb.view.final!.capital);
+    assert.equal(mine.amount, E.fmt(ra.view.final!.capital));
+    assert.equal(theirs.amount, E.fmt(rb.view.final!.capital));
+    assert.equal(mine.title, E.TITLES[ra.view.final!.titleKey].title);
+    assert.equal(mine.icon, E.TITLES[ra.view.final!.titleKey].icon);
+    assert.deepEqual(d.json.rows.map((r: { pos: number }) => r.pos), [1, 2]);
+    assert.deepEqual(Object.keys(mine).sort(), ['amount', 'icon', 'mine', 'pos', 'status', 'tag', 'title']);
+    assert.equal(mine.tag, null);
     assertNoLeaks(d.json, 'duelo');
+  });
+
+  test('duelo: solo lo ve quien lo jugó; orden terminados → jugando → abandonados; el abandonado se retoma', async () => {
+    const creador = newUser(), jugando = newUser(), abandona = newUser(), curioso = newUser();
+    await call(app, 'PUT', '/me/lbtag', creador, { lbtag: 'duelo.creador' });
+    const a = await call(app, 'POST', '/runs', creador, {});
+    const code = a.json.view.challenge;
+    await playOut(app, creador, a.json.runId, 0, a.json.view);
+    const j = await call(app, 'POST', '/runs', jugando, { duelo: code });
+    const ab = await call(app, 'POST', '/runs', abandona, { duelo: code });
+    await call(app, 'POST', '/runs', abandona, {}); // empezar otra partida abandona la del duelo
+
+    // sin haberlo jugado, no se puede espiar
+    const no = await call(app, 'GET', '/duelos/' + code, curioso);
+    assert.equal(no.status, 403);
+    assert.equal(no.json.error.code, 'duelo_no_jugado');
+
+    const d = await call(app, 'GET', '/duelos/' + code, creador);
+    assert.deepEqual(d.json.rows.map((r: { status: string; tag: string | null; pos: number | null }) => [r.status, r.tag, r.pos]),
+      [['finished', '$duelo.creador', 1], ['active', null, null], ['abandoned', null, null]]);
+    // máximo una consulta cada 3 segundos por jugador
+    assert.equal((await call(app, 'GET', '/duelos/' + code, creador)).status, 429);
+
+    // quien abandonó vuelve con el link: retoma la misma partida, en el mismo punto
+    const back = await call(app, 'POST', '/runs', abandona, { duelo: code });
+    assert.equal(back.json.alreadyPlayed, true);
+    assert.equal(back.json.runId, ab.json.runId);
+    assert.equal(back.json.status, 'active');
+    assert.deepEqual(back.json.view, ab.json.view);
+    const act = await call(app, 'POST', `/runs/${back.json.runId}/actions`, abandona, { version: back.json.version, action: { type: 'pick', option: 0 } });
+    assert.equal(act.status, 200);
+    void j;
   });
 
   test('código de duelo inválido → 400', async () => {

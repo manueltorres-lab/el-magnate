@@ -3,8 +3,8 @@
 import { Hono, type Context } from 'hono';
 import { cors } from 'hono/cors';
 import {
-  cleanCode, createRun, deriveSeeds, EngineError, mkCode, step, toView,
-  type Action, type Config, type RunState,
+  cleanCode, createRun, deriveSeeds, EngineError, fmt, mkCode, step, TITLES, toView,
+  type Action, type Config, type RunState, type TitleKey,
 } from './engine/index.ts';
 import { ApiError } from './errors.ts';
 import { bearer, type Authenticator } from './auth.ts';
@@ -129,6 +129,24 @@ export function createApp(deps: AppDeps) {
     if (!(await store.rateHit(key, windowSeconds, max))) throw new ApiError('rate_limited');
   };
 
+  /** Resultados de un duelo con la forma que usa la pantalla (handoff §6 bis). */
+  const dueloResponse = async (code: string, uid: string) => {
+    let pos = 0;
+    const rows = (await store.duelo(code)).map((r) => {
+      const fin = r.status === 'finished';
+      const t = fin && r.final_key ? TITLES[r.final_key as TitleKey] : null;
+      return {
+        pos: fin ? ++pos : null,
+        tag: r.lbtag ? '$' + r.lbtag : null,
+        mine: r.player_id === uid,
+        status: r.status,
+        icon: t ? t.icon : '', title: t ? t.title : '',
+        amount: fin && r.final_capital != null ? fmt(Number(r.final_capital)) : '',
+      };
+    });
+    return { code, rows };
+  };
+
   app.post('/runs', async (c) => {
     const uid = c.get('uid');
     const b = await body(c);
@@ -141,6 +159,12 @@ export function createApp(deps: AppDeps) {
       if (!d) throw new ApiError('bad_request', 'Ese código de duelo no es válido. Tiene la forma MGN-XXXXX.');
       code = d;
       duelo = true;
+      // de cada jugador cuenta solo el primer intento: si ya jugó (o lo creó), no hay partida nueva
+      const prev = await store.firstAttempt(code, uid);
+      if (prev) {
+        const run = prev.status === 'abandoned' ? (await store.reactivate(prev.id, uid)) ?? prev : prev;
+        return c.json({ alreadyPlayed: true, ...runResponse(run), duelo: await dueloResponse(code, uid) });
+      }
     } else {
       code = mkCode(); // lo genera el server, nunca el cliente
     }
@@ -243,15 +267,10 @@ export function createApp(deps: AppDeps) {
     const code = cleanCode(c.req.param('code'));
     if (!code) throw new ApiError('bad_request', 'Ese código de duelo no es válido.');
     const uid = c.get('uid');
-    const rows = await store.duelo(code);
-    return c.json({
-      code,
-      rows: rows.map((r) => ({
-        lbtag: r.lbtag, status: r.status, mine: r.player_id === uid,
-        titleKey: r.status === 'finished' ? r.final_key : null,
-        capital: r.status === 'finished' ? r.final_capital : null,
-      })),
-    });
+    await limit('duelo:' + uid, 3, 1);
+    // ver los resultados antes de jugar sería ventaja: solo quien lo jugó o lo creó
+    if (!(await store.firstAttempt(code, uid))) throw new ApiError('duelo_no_jugado');
+    return c.json(await dueloResponse(code, uid));
   });
 
   return app;

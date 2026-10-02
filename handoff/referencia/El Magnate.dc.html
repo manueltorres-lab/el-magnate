@@ -461,6 +461,87 @@
     </div>
 
     <sc-if value="{{ tabCarta }}" hint-placeholder-val="{{ true }}">
+
+    <sc-if value="{{ esDuelo }}">
+      <div style="border:1px solid rgba(115,255,161,.35);border-radius:16px;background:linear-gradient(180deg,rgba(115,255,161,.09),#180f24);padding:18px;margin-bottom:18px;">
+        <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:14px;">
+          <div style="flex:1 1 auto;min-width:0;">
+            <div style="font-family:'Plus Jakarta Sans',sans-serif;font-variant-numeric:tabular-nums;font-size:10px;letter-spacing:.14em;color:rgba(244,233,254,.5);margin-bottom:8px;">CÓMO TE FUE EN EL DUELO <span style="color:#73ffa1;font-weight:700;">{{ duelo.code }}</span></div>
+            <sc-if value="{{ duelo.hasSummary }}">
+              <div style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:clamp(19px,2.8vw,24px);line-height:1.2;letter-spacing:-.03em;margin-bottom:6px;text-wrap:pretty;">{{ duelo.summary }}</div>
+            </sc-if>
+            <div style="font-size:13.5px;line-height:1.5;color:rgba(244,233,254,.62);max-width:60ch;text-wrap:pretty;">Misma partida, mismos escenarios, misma suerte. De cada uno cuenta solo el primer intento.</div>
+          </div>
+          <button onClick="{{ duelo.onRefresh }}" style="flex:none;padding:10px 14px;border-radius:11px;border:1px solid rgba(244,233,254,.18);background:rgba(0,0,0,.24);color:rgba(244,233,254,.78);font-size:13px;font-weight:700;cursor:pointer;" style-hover="border-color:rgba(115,255,161,.5);color:#73ffa1">{{ duelo.refreshLabel }}</button>
+        </div>
+        <sc-if value="{{ duelo.loading }}">
+          <div style="border:1px solid rgba(244,233,254,.12);border-radius:12px;background:rgba(0,0,0,.2);overflow:hidden;">
+            <sc-for list="{{ duelo.skeleton }}" as="k" hint-placeholder-count="3">
+              <div style="display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:11px;align-items:center;padding:14px 16px;border-top:1px solid rgba(244,233,254,.08);">
+                <span style="display:block;height:10px;border-radius:5px;background:rgba(244,233,254,.08);"></span>
+                <span style="display:flex;flex-direction:column;gap:7px;">
+                  <span style="display:block;width:46%;height:11px;border-radius:5px;background:rgba(244,233,254,.1);"></span>
+                  <span style="display:block;width:30%;height:9px;border-radius:5px;background:rgba(244,233,254,.06);"></span>
+                </span>
+                <span style="display:block;width:72px;height:11px;border-radius:5px;background:rgba(244,233,254,.08);"></span>
+              </div>
+            </sc-for>
+            <div style="padding:11px 16px 14px;border-top:1px solid rgba(244,233,254,.08);font-size:13px;color:rgba(244,233,254,.5);">Buscando quién jugó…</div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ duelo.error }}">
+          <div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:15px 16px;border-radius:12px;border:1px solid rgba(255,138,155,.4);background:rgba(255,138,155,.08);">
+            <span style="flex:1 1 220px;min-width:0;font-size:14px;line-height:1.45;color:rgba(244,233,254,.82);text-wrap:pretty;">No pudimos traer los resultados del duelo. Revisá la conexión y probá de nuevo.</span>
+            <button onClick="{{ duelo.onRefresh }}" style="padding:11px 15px;border-radius:11px;border:1px solid rgba(255,138,155,.5);background:rgba(0,0,0,.24);color:#ff8a9b;font-size:13.5px;font-weight:700;cursor:pointer;">Reintentar</button>
+          </div>
+        </sc-if>
+        <sc-if value="{{ duelo.empty }}">
+          <div style="padding:16px;border-radius:12px;border:1px dashed rgba(244,233,254,.2);background:rgba(0,0,0,.18);">
+            <div style="font-size:15px;font-weight:700;color:#fbfafd;margin-bottom:5px;">{{ duelo.emptyTitle }}</div>
+            <div style="font-size:13.5px;line-height:1.5;color:rgba(244,233,254,.62);text-wrap:pretty;">{{ duelo.emptyText }}</div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ duelo.ready }}" hint-placeholder-val="{{ true }}">
+          <div style="border:1px solid rgba(244,233,254,.12);border-radius:12px;background:rgba(0,0,0,.2);overflow:hidden;">
+            <sc-for list="{{ duelo.rows }}" as="r" hint-placeholder-count="4">
+              <div style="{{ r.rowStyle }}">
+                <span style="font-family:'Plus Jakarta Sans',sans-serif;font-variant-numeric:tabular-nums;font-size:11.5px;color:rgba(244,233,254,.35);">{{ r.posText }}</span>
+                <span style="min-width:0;display:flex;flex-direction:column;gap:3px;">
+                  <span style="display:flex;align-items:center;gap:7px;min-width:0;">
+                    <span style="min-width:0;font-family:'Plus Jakarta Sans',sans-serif;font-size:14px;font-weight:{{ r.tagWeight }};color:{{ r.tagColor }};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ r.tagText }}</span>
+                    <sc-if value="{{ r.mine }}">
+                      <span style="flex:none;padding:2px 7px;border-radius:99px;background:rgba(115,255,161,.16);border:1px solid rgba(115,255,161,.4);font-size:10.5px;font-weight:700;color:#73ffa1;">Vos</span>
+                    </sc-if>
+                  </span>
+                  <sc-if value="{{ r.isFinished }}" hint-placeholder-val="{{ true }}">
+                    <span style="min-width:0;font-size:12.5px;color:rgba(244,233,254,.62);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ r.icon }} {{ r.title }}</span>
+                  </sc-if>
+                  <sc-if value="{{ r.isActive }}">
+                    <span style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:#cbb4ff;">
+                      <span style="width:6px;height:6px;border-radius:99px;background:#8555ff;"></span>
+                      <span>Jugando ahora</span>
+                    </span>
+                  </sc-if>
+                  <sc-if value="{{ r.isAbandoned }}">
+                    <span style="font-size:12.5px;color:rgba(244,233,254,.4);">Abandonó</span>
+                  </sc-if>
+                </span>
+                <span style="font-family:'Plus Jakarta Sans',sans-serif;font-variant-numeric:tabular-nums;font-size:13.5px;font-weight:700;color:{{ r.amountColor }};">{{ r.amountText }}</span>
+              </div>
+            </sc-for>
+            <sc-if value="{{ duelo.hasMore }}">
+              <button onClick="{{ duelo.onMore }}" style="display:block;width:100%;padding:13px 16px;border:none;border-top:1px solid rgba(244,233,254,.08);background:transparent;color:rgba(244,233,254,.7);font-size:13.5px;font-weight:600;cursor:pointer;text-align:center;" style-hover="color:#73ffa1">{{ duelo.moreLabel }}</button>
+            </sc-if>
+          </div>
+          <sc-if value="{{ duelo.hasActive }}">
+            <div style="font-size:12.5px;line-height:1.5;color:rgba(244,233,254,.5);margin-top:10px;">{{ duelo.activeNote }}</div>
+          </sc-if>
+          <sc-if value="{{ duelo.hasAnon }}">
+            <div style="font-size:12.5px;line-height:1.5;color:rgba(244,233,254,.62);margin-top:8px;text-wrap:pretty;">Figurás como <strong style="color:#fbfafd;">Anónimo</strong>. Dejá tu $LBtag en "Entrá al ranking" y te ven con tu nombre.</div>
+          </sc-if>
+        </sc-if>
+      </div>
+    </sc-if>
     <div style="display:flex;flex-wrap:wrap;gap:18px;align-items:flex-start;">
       <div style="flex:1 1 320px;min-width:0;">
         <div style="position:relative;border-radius:22px;overflow:hidden;border:1px solid rgba(244,233,254,.28);background:linear-gradient(165deg,rgba(255,255,255,.14),rgba(255,255,255,.02) 48%),linear-gradient(160deg,#5632b2,#2a1350);box-shadow:0 24px 70px rgba(0,0,0,.5);padding:24px 22px 20px;">
@@ -589,7 +670,86 @@
         <span style="flex:1 1 200px;min-width:0;font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;color:rgba(244,233,254,.45);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ challengeLink }}</span>
         <button onClick="{{ onCopyDuelo }}" style="padding:12px 16px;border-radius:11px;border:1px solid rgba(244,233,254,.18);background:rgba(0,0,0,.24);color:rgba(244,233,254,.78);font-size:13.5px;font-weight:700;cursor:pointer;" style-hover="border-color:rgba(115,255,161,.5);color:#73ffa1">{{ dueloCopyLabel }}</button>
       </div>
-    </div>
+
+      <sc-if value="{{ duelo.creador }}">
+        <div style="border-top:1px solid rgba(244,233,254,.1);margin-top:16px;padding-top:16px;">
+          <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:12px;">
+            <div style="flex:1 1 auto;min-width:0;">
+              <div style="font-family:'Plus Jakarta Sans',sans-serif;font-variant-numeric:tabular-nums;font-size:10px;letter-spacing:.14em;color:rgba(244,233,254,.5);margin-bottom:6px;">QUIÉN JUGÓ TU PARTIDA</div>
+              <sc-if value="{{ duelo.hasSummary }}">
+                <div style="font-size:14.5px;line-height:1.5;color:rgba(244,233,254,.82);text-wrap:pretty;">{{ duelo.summary }}</div>
+              </sc-if>
+            </div>
+            <button onClick="{{ duelo.onRefresh }}" style="flex:none;padding:10px 14px;border-radius:11px;border:1px solid rgba(244,233,254,.18);background:rgba(0,0,0,.24);color:rgba(244,233,254,.78);font-size:13px;font-weight:700;cursor:pointer;" style-hover="border-color:rgba(115,255,161,.5);color:#73ffa1">{{ duelo.refreshLabel }}</button>
+          </div>
+        <sc-if value="{{ duelo.loading }}">
+          <div style="border:1px solid rgba(244,233,254,.12);border-radius:12px;background:rgba(0,0,0,.2);overflow:hidden;">
+            <sc-for list="{{ duelo.skeleton }}" as="k" hint-placeholder-count="3">
+              <div style="display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:11px;align-items:center;padding:14px 16px;border-top:1px solid rgba(244,233,254,.08);">
+                <span style="display:block;height:10px;border-radius:5px;background:rgba(244,233,254,.08);"></span>
+                <span style="display:flex;flex-direction:column;gap:7px;">
+                  <span style="display:block;width:46%;height:11px;border-radius:5px;background:rgba(244,233,254,.1);"></span>
+                  <span style="display:block;width:30%;height:9px;border-radius:5px;background:rgba(244,233,254,.06);"></span>
+                </span>
+                <span style="display:block;width:72px;height:11px;border-radius:5px;background:rgba(244,233,254,.08);"></span>
+              </div>
+            </sc-for>
+            <div style="padding:11px 16px 14px;border-top:1px solid rgba(244,233,254,.08);font-size:13px;color:rgba(244,233,254,.5);">Buscando quién jugó…</div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ duelo.error }}">
+          <div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:15px 16px;border-radius:12px;border:1px solid rgba(255,138,155,.4);background:rgba(255,138,155,.08);">
+            <span style="flex:1 1 220px;min-width:0;font-size:14px;line-height:1.45;color:rgba(244,233,254,.82);text-wrap:pretty;">No pudimos traer los resultados del duelo. Revisá la conexión y probá de nuevo.</span>
+            <button onClick="{{ duelo.onRefresh }}" style="padding:11px 15px;border-radius:11px;border:1px solid rgba(255,138,155,.5);background:rgba(0,0,0,.24);color:#ff8a9b;font-size:13.5px;font-weight:700;cursor:pointer;">Reintentar</button>
+          </div>
+        </sc-if>
+        <sc-if value="{{ duelo.empty }}">
+          <div style="padding:16px;border-radius:12px;border:1px dashed rgba(244,233,254,.2);background:rgba(0,0,0,.18);">
+            <div style="font-size:15px;font-weight:700;color:#fbfafd;margin-bottom:5px;">{{ duelo.emptyTitle }}</div>
+            <div style="font-size:13.5px;line-height:1.5;color:rgba(244,233,254,.62);text-wrap:pretty;">{{ duelo.emptyText }}</div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ duelo.ready }}" hint-placeholder-val="{{ true }}">
+          <div style="border:1px solid rgba(244,233,254,.12);border-radius:12px;background:rgba(0,0,0,.2);overflow:hidden;">
+            <sc-for list="{{ duelo.rows }}" as="r" hint-placeholder-count="4">
+              <div style="{{ r.rowStyle }}">
+                <span style="font-family:'Plus Jakarta Sans',sans-serif;font-variant-numeric:tabular-nums;font-size:11.5px;color:rgba(244,233,254,.35);">{{ r.posText }}</span>
+                <span style="min-width:0;display:flex;flex-direction:column;gap:3px;">
+                  <span style="display:flex;align-items:center;gap:7px;min-width:0;">
+                    <span style="min-width:0;font-family:'Plus Jakarta Sans',sans-serif;font-size:14px;font-weight:{{ r.tagWeight }};color:{{ r.tagColor }};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ r.tagText }}</span>
+                    <sc-if value="{{ r.mine }}">
+                      <span style="flex:none;padding:2px 7px;border-radius:99px;background:rgba(115,255,161,.16);border:1px solid rgba(115,255,161,.4);font-size:10.5px;font-weight:700;color:#73ffa1;">Vos</span>
+                    </sc-if>
+                  </span>
+                  <sc-if value="{{ r.isFinished }}" hint-placeholder-val="{{ true }}">
+                    <span style="min-width:0;font-size:12.5px;color:rgba(244,233,254,.62);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ r.icon }} {{ r.title }}</span>
+                  </sc-if>
+                  <sc-if value="{{ r.isActive }}">
+                    <span style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:#cbb4ff;">
+                      <span style="width:6px;height:6px;border-radius:99px;background:#8555ff;"></span>
+                      <span>Jugando ahora</span>
+                    </span>
+                  </sc-if>
+                  <sc-if value="{{ r.isAbandoned }}">
+                    <span style="font-size:12.5px;color:rgba(244,233,254,.4);">Abandonó</span>
+                  </sc-if>
+                </span>
+                <span style="font-family:'Plus Jakarta Sans',sans-serif;font-variant-numeric:tabular-nums;font-size:13.5px;font-weight:700;color:{{ r.amountColor }};">{{ r.amountText }}</span>
+              </div>
+            </sc-for>
+            <sc-if value="{{ duelo.hasMore }}">
+              <button onClick="{{ duelo.onMore }}" style="display:block;width:100%;padding:13px 16px;border:none;border-top:1px solid rgba(244,233,254,.08);background:transparent;color:rgba(244,233,254,.7);font-size:13.5px;font-weight:600;cursor:pointer;text-align:center;" style-hover="color:#73ffa1">{{ duelo.moreLabel }}</button>
+            </sc-if>
+          </div>
+          <sc-if value="{{ duelo.hasActive }}">
+            <div style="font-size:12.5px;line-height:1.5;color:rgba(244,233,254,.5);margin-top:10px;">{{ duelo.activeNote }}</div>
+          </sc-if>
+          <sc-if value="{{ duelo.hasAnon }}">
+            <div style="font-size:12.5px;line-height:1.5;color:rgba(244,233,254,.62);margin-top:8px;text-wrap:pretty;">Figurás como <strong style="color:#fbfafd;">Anónimo</strong>. Dejá tu $LBtag en "Entrá al ranking" y te ven con tu nombre.</div>
+          </sc-if>
+        </sc-if>
+        </div>
+      </sc-if>    </div>
 
     <div style="border:1px solid rgba(115,255,161,.35);border-radius:16px;background:linear-gradient(180deg,rgba(115,255,161,.09),#180f24);padding:22px;margin-top:12px;">
       <h3 style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:clamp(21px,3vw,26px);line-height:1.15;letter-spacing:-.03em;margin:0 0 9px;text-wrap:pretty;">Acá la plata era de mentira. Tu cabeza para decidir, no.</h3>
@@ -702,7 +862,7 @@
 </div>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props="{&quot;rounds&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:12,&quot;min&quot;:6,&quot;max&quot;:20,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Balance&quot;},&quot;startingCapital&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:500000,&quot;min&quot;:100000,&quot;max&quot;:5000000,&quot;step&quot;:50000,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Balance&quot;},&quot;incomeBase&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:260000,&quot;min&quot;:50000,&quot;max&quot;:800000,&quot;step&quot;:10000,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Balance&quot;,&quot;unit&quot;:&quot;$ por período&quot;},&quot;eventChance&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:0.55,&quot;min&quot;:0,&quot;max&quot;:1,&quot;step&quot;:0.05,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Balance&quot;},&quot;minigame&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Balance&quot;}}">
+<script type="text/x-dc" data-dc-script data-props="{&quot;rounds&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:12,&quot;min&quot;:6,&quot;max&quot;:20,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Balance&quot;},&quot;startingCapital&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:500000,&quot;min&quot;:100000,&quot;max&quot;:5000000,&quot;step&quot;:50000,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Balance&quot;},&quot;incomeBase&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:260000,&quot;min&quot;:50000,&quot;max&quot;:800000,&quot;step&quot;:10000,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Balance&quot;,&quot;unit&quot;:&quot;$ por período&quot;},&quot;eventChance&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:0.55,&quot;min&quot;:0,&quot;max&quot;:1,&quot;step&quot;:0.05,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Balance&quot;},&quot;minigame&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Balance&quot;},&quot;dueloDemo&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;algunos&quot;,&quot;vacio&quot;,&quot;muchos&quot;,&quot;cargando&quot;,&quot;error&quot;],&quot;default&quot;:&quot;algunos&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Duelo (demo)&quot;},&quot;dueloRol&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;url&quot;,&quot;creador&quot;,&quot;retado&quot;],&quot;default&quot;:&quot;url&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Duelo (demo)&quot;}}">
 const TAG_LABEL = {conservative:'Conservador', moderate:'Moderado', aggressive:'Agresivo', business:'Emprendedor', debt:'Apalancado', realestate:'Ladrillo', education:'Estudioso', networking:'Bien conectado', philanthropy:'Solidario', consumption:'Disfrutón'};
 const TAG_EFFECT = {
   conservative:{rep:0, calma:5}, moderate:{rep:1, calma:1}, aggressive:{rep:2, calma:-8},
@@ -1740,6 +1900,85 @@ class Component extends DCLogic {
     return TITLES.deberes;
   }
 
+  dueloRowStyle(mine){
+    return 'display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:11px;align-items:center;padding:12px 16px;border-top:1px solid rgba(244,233,254,.08);'
+      + (mine ? 'background:rgba(115,255,161,.09);' : '');
+  }
+
+  // DATOS DE EJEMPLO. Reemplazar por la respuesta de GET /api/duelos/:code (misma forma).
+  dueloData(tKey){
+    const s = this.state, demo = this.props.dueloDemo ?? 'algunos';
+    const base = {code: s.duelo || s.challenge, loading: demo==='cargando', error: demo==='error', empty:false, rows:[], onRefresh: this.refreshDuelo};
+    if(base.loading || base.error) return base;
+    const F = (tag, key, cap) => ({tag, status:'finished', key, cap});
+    const POOL = {
+      vacio: [],
+      algunos: [F('$sofi.pereyra','magnate',41800000), F(null,'constructor',12650000), F('$tomi.gallardo','zafando',2140000),
+        {tag:'$vale.ruiz', status:'active'}, {tag:null, status:'abandoned'}],
+      muchos: [F('$sofi.pereyra','imperio',182400000), F('$nico_83','magnate',47300000), F('$juli.acosta','pulso',33900000),
+        F(null,'independencia',21800000), F('$caro.f','ladrillo',17250000), F('$mati.bianchi','constructor',13400000),
+        F('$lu.marquez','deberes',9800000), F(null,'disfruton',7150000), F('$pepe.lb','estudioso',5420000),
+        F('$tomi.gallardo','zafando',2140000), F('$ro.sanchez','perdido',380000), F(null,'quiebra',0),
+        {tag:'$vale.ruiz', status:'active'}, {tag:'$fede.ok', status:'active'}, {tag:null, status:'abandoned'}]
+    };
+    const me = {tag: s.tagSaved && s.lbtag.trim() ? '$' + s.lbtag.trim() : null, mine:true, status:'finished', key:tKey, cap:s.capital};
+    const all = [...(POOL[demo] || POOL.algunos), me];
+    const fin = all.filter(r => r.status==='finished').sort((a,b) => b.cap - a.cap);
+    const rest = all.filter(r => r.status!=='finished').sort((a,b) => (a.status==='active' ? 0 : 1) - (b.status==='active' ? 0 : 1));
+    const rows = [...fin, ...rest].map((r,i) => ({
+      pos: r.status==='finished' ? i+1 : null, tag: r.tag, mine: !!r.mine, status: r.status,
+      icon: r.key ? TITLES[r.key].icon : '', title: r.key ? TITLES[r.key].title : '',
+      amount: r.status==='finished' ? fmt(r.cap) : '', rowStyle: this.dueloRowStyle(r.mine)}));
+    return {...base, empty: rows.filter(r => !r.mine).length===0, rows};
+  }
+
+  refreshDuelo = () => {
+    this.setState({dueloRefreshing:true});
+    setTimeout(() => this.setState({dueloRefreshing:false}), 900);
+  };
+
+  dueloView(tKey){
+    const s = this.state, esDuelo = !!s.duelo || this.props.dueloRol==='retado';
+    const d = this.dueloData(tKey);
+    const all = d.rows.map(r => ({...r,
+      posText: r.pos ? String(r.pos).padStart(2,'0') : '—',
+      tagText: r.tag || 'Anónimo',
+      tagColor: r.mine ? '#73ffa1' : (r.tag ? 'rgba(244,233,254,.82)' : 'rgba(244,233,254,.45)'),
+      tagWeight: r.mine ? 700 : 500,
+      isFinished: r.status==='finished', isActive: r.status==='active', isAbandoned: r.status==='abandoned',
+      amountText: r.status==='finished' ? r.amount : '—',
+      amountColor: r.status==='finished' ? '#73ffa1' : 'rgba(244,233,254,.3)'}));
+    const LIMIT = 10, mi = all.findIndex(r => r.mine);
+    let rows = all, hidden = 0;
+    if(!s.dueloAll && all.length > LIMIT + 2){
+      rows = all.slice(0, LIMIT);
+      if(mi >= LIMIT) rows.push(all[mi]);
+      hidden = all.length - rows.length;
+    }
+    const fin = all.filter(r => r.isFinished), me = all[mi], top = fin[0];
+    const activos = all.filter(r => r.isActive).length;
+    const otros = all.filter(r => !r.mine && r.isFinished).length;
+    let summary = '';
+    if(me && me.isFinished && fin.length > 1){
+      if(esDuelo) summary = me.pos===1 ? 'Quedaste 1° de ' + fin.length + '. Por ahora nadie decidió mejor que vos.'
+        : 'Quedaste ' + me.pos + '° de ' + fin.length + '. Arriba de todo: ' + top.tagText + ' con ' + top.icon + ' ' + top.title + '.';
+      else summary = (otros===1 ? 'Una persona terminó tu partida' : otros + ' personas terminaron tu partida')
+        + (me.pos===1 ? ' y nadie te pasó.' : '. Vas ' + me.pos + '° de ' + fin.length + '.');
+    }
+    const ready = !d.loading && !d.error && !d.empty;
+    return {...d, rows, ready, creador: !esDuelo, skeleton:[0,1,2],
+      summary, hasSummary: ready && !!summary,
+      emptyTitle: esDuelo ? 'Sos el primero en terminar este duelo.' : 'Todavía nadie jugó tu partida.',
+      emptyText: esDuelo ? 'Pasale el link a alguien más y fijate quién te supera.' : 'Copiá el link de arriba y mandáselo a alguien que se crea mejor que vos. Cuando lo juegue, aparece acá.',
+      hasActive: ready && activos > 0,
+      activeNote: (activos===1 ? 'Hay 1 persona jugando' : 'Hay ' + activos + ' personas jugando') + ' ahora. La tabla todavía se puede mover.',
+      hasAnon: ready && !!me && !me.tag,
+      hasMore: ready && (hidden > 0 || !!s.dueloAll),
+      moreLabel: s.dueloAll ? 'Ver menos' : 'Ver los ' + all.length,
+      onMore: () => this.setState({dueloAll: !s.dueloAll}),
+      refreshLabel: s.dueloRefreshing ? 'Actualizando…' : 'Actualizar'};
+  }
+
   renderVals(){
     const s = this.state, R = this.rounds;
     const GREEN = '#73ffa1', RED = '#ff8a9b', DIM = 'rgba(244,233,254,.7)';
@@ -2137,7 +2376,8 @@ class Component extends DCLogic {
       challengeLink: this.dueloUrl(),
       dueloCopyLabel: s.dueloCopied ? '¡Copiado!' : 'Copiar link',
       onCopyDuelo: this.copyDuelo,
-      esDuelo: !!s.duelo, dueloCode: s.duelo || '',
+      esDuelo: !!s.duelo || this.props.dueloRol==='retado', dueloCode: s.duelo || s.challenge || '',
+      duelo: this.dueloView(tKey),
       onStory: () => this.setState({storyOpen:true}),
       onCloseStory: () => this.setState({storyOpen:false}),
       stopStory: (e) => { if(e && e.stopPropagation) e.stopPropagation(); },

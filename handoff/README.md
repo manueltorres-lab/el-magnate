@@ -291,6 +291,11 @@ POST /api/runs                       crear partida
   resp  { runId, version, view }
   - sin duelo: el server genera el código (no el cliente)
   - con duelo: validar formato con la misma regex que cleanCode()
+  - con duelo y el jugador YA tiene un intento con ese código (terminado, activo o
+    abandonado; o es quien creó el desafío): NO crear partida. Responder
+    { alreadyPlayed: true, duelo: <misma respuesta que GET /api/duelos/:code> }
+    y el front muestra directo la tabla de resultados (ver §6 bis). Si el intento
+    está activo, devolver también { runId } para que pueda retomarlo.
   - una sola partida activa por jugador: si hay otra, se marca 'abandoned'
 
 GET  /api/runs/:id                   retomar (recarga de página)
@@ -313,6 +318,35 @@ PUT  /api/me/lbtag                   { lbtag }  → validar formato y unicidad
 GET  /api/ranking?by=rareza|plata&period=semana|historico
 GET  /api/duelos/:code               resultados del primer intento de cada jugador
 ```
+
+### 6 bis. Resultados del duelo
+
+El front ya tiene la UI (`El Magnate.dc.html`, funciones `dueloData()` y `dueloView()`;
+reemplazar `dueloData()` por la llamada real). Forma de la respuesta:
+
+```ts
+{
+  code: "MGN-XXXXX",
+  rows: Array<{
+    pos: number | null,          // null si no terminó
+    tag: string | null,          // "$sofi.pereyra" o null → se muestra "Anónimo"
+    mine: boolean,               // es quien está mirando
+    status: 'finished' | 'active' | 'abandoned',
+    icon: string, title: string, // del final (vacíos si no terminó)
+    amount: string               // capital final ya formateado: "$41.800.000"
+  }>
+}
+```
+
+- Orden: terminados por capital (desc), después activos, después abandonados.
+- Solo el **primer intento** de cada jugador con ese código. Incluye al creador.
+- `loading`, `error`, `empty` y `rowStyle` los arma el front; el server no los manda.
+- Solo se puede ver si el jugador ya jugó ese código (o lo creó). Si no, `403`:
+  ver resultados antes de jugar sería ventaja. Nunca exponer `player_id` de otros.
+- **Volver a ver más tarde:** el mismo link `?duelo=MGN-XXXXX` sirve. Si el jugador
+  ya lo jugó, `POST /api/runs` responde `alreadyPlayed` y el front abre la pantalla
+  de resultados en vez de una partida nueva. No hace falta otro link.
+- "Actualizar" vuelve a pedir `GET /api/duelos/:code`. Rate limit: 1 cada 3 s.
 
 ### Reglas de ranking
 

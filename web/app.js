@@ -134,6 +134,7 @@
       anim:null, wheelAngle:0,
       tab:'carta', rankTab:'semanal', lbtag:'', tagSaved:false, unlocked:[], storyOpen:false,
       ranking: { semana:null, historico:null }, rareza:null,
+      dueloRes:null, dueloAll:false, dueloRefreshing:false,
       copied:false, dueloCopied:false, duelo:null,
     };
     busy = false;
@@ -179,8 +180,9 @@
       const patch = { runId: r.runId || this.state.runId, version: r.version, view: r.view, screen: finished ? 'result' : 'game', net: null };
       if (finished && r.view.final) {
         patch.unlocked = [...new Set([...this.state.unlocked, r.view.final.titleKey])];
-        if (this.state.screen !== 'result') this.loadRanking();
+        if (this.state.screen !== 'result') { this.loadRanking(); if (!r.duelo) this.loadDuelo(r.view.challenge); }
       }
+      if (r.duelo) patch.dueloRes = { code: r.duelo.code, rows: r.duelo.rows, error: false };
       if (!r.view.mini) patch.wheelAngle = 0;
       this.setState(patch);
     }
@@ -205,7 +207,7 @@
       try {
         const r = await api('POST', '/runs', this.state.duelo ? { duelo: this.state.duelo } : {});
         store.set('sessionStorage', 'elmagnate.run', r.runId);
-        this.setState({ tab:'carta', storyOpen:false, copied:false, wheelAngle:0 });
+        this.setState({ tab:'carta', storyOpen:false, copied:false, wheelAngle:0, dueloRes:null, dueloAll:false });
         this.applyRun(r);
       } catch (e) {
         this.showError(e, this.start);
@@ -215,7 +217,24 @@
       }
     };
 
-    restart = () => this.setState({ screen:'start', net:null });
+    // "Jugar otra partida" después de un duelo arranca una partida normal
+    restart = () => {
+      try { if (location.search) history.replaceState(null, '', location.pathname); } catch { /* sin history */ }
+      this.setState({ screen:'start', net:null, duelo:null, dueloRes:null, dueloAll:false });
+    };
+
+    /** Trae la tabla del duelo (quién jugó esta misma partida). Si falla, se ve el error con Reintentar. */
+    loadDuelo(code) {
+      if (!code) return;
+      this.setState((s) => ({ dueloRefreshing: true, dueloRes: s.dueloRes && s.dueloRes.code === code ? s.dueloRes : { code, rows: null, error: false } }));
+      api('GET', '/duelos/' + code)
+        .then((r) => this.setState({ dueloRes: { code, rows: r.rows, error: false } }))
+        .catch((e) => this.setState((s) => ({
+          // muy seguido (429): se queda con lo que ya tenía
+          dueloRes: e.code === 'rate_limited' && s.dueloRes && s.dueloRes.rows ? s.dueloRes : { code, rows: null, error: true },
+        })))
+        .finally(() => this.setState({ dueloRefreshing: false }));
+    }
 
     /** Manda una acción y devuelve la respuesta sin aplicarla (las animaciones la aplican al final). */
     async send(action) {
@@ -310,6 +329,7 @@
         store.set('localStorage', 'elmagnate.lbtag', r.lbtag);
         this.setState({ lbtag: r.lbtag, tagSaved: true, net: null });
         this.loadRanking();
+        if (this.state.screen === 'result') setTimeout(() => this.loadDuelo(this.view().challenge), 3000);
       } catch (e) {
         this.showError(e, e.code === 'network' ? this.saveTag : null);
       } finally { this.busy = false; }
@@ -351,6 +371,55 @@
     }
 
     view() { return this.state.view || EMPTY_VIEW; }
+
+    // ---------- resultados del duelo (diseño de handoff/referencia, dueloView) ----------
+    dueloView() {
+      const s = this.state, v = this.view(), esDuelo = !!v.duelo;
+      const d = s.dueloRes || { code: v.challenge, rows: null, error: false };
+      const loading = !d.rows && !d.error;
+      const error = !d.rows && !!d.error;
+      const all = (d.rows || []).map((r) => ({ ...r,
+        rowStyle: 'display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:11px;align-items:center;padding:12px 16px;border-top:1px solid rgba(244,233,254,.08);'
+          + (r.mine ? 'background:rgba(115,255,161,.09);' : ''),
+        posText: r.pos ? String(r.pos).padStart(2, '0') : '—',
+        tagText: r.tag || 'Anónimo',
+        tagColor: r.mine ? '#73ffa1' : (r.tag ? 'rgba(244,233,254,.82)' : 'rgba(244,233,254,.45)'),
+        tagWeight: r.mine ? 700 : 500,
+        isFinished: r.status==='finished', isActive: r.status==='active', isAbandoned: r.status==='abandoned',
+        amountText: r.status==='finished' ? r.amount : '—',
+        amountColor: r.status==='finished' ? '#73ffa1' : 'rgba(244,233,254,.3)' }));
+      const empty = !!d.rows && all.filter((r) => !r.mine).length === 0;
+      const LIMIT = 10, mi = all.findIndex((r) => r.mine);
+      let rows = all, hidden = 0;
+      if (!s.dueloAll && all.length > LIMIT + 2) {
+        rows = all.slice(0, LIMIT);
+        if (mi >= LIMIT) rows.push(all[mi]);
+        hidden = all.length - rows.length;
+      }
+      const fin = all.filter((r) => r.isFinished), me = all[mi], top = fin[0];
+      const activos = all.filter((r) => r.isActive).length;
+      const otros = all.filter((r) => !r.mine && r.isFinished).length;
+      let summary = '';
+      if (me && me.isFinished && fin.length > 1) {
+        if (esDuelo) summary = me.pos===1 ? 'Quedaste 1° de ' + fin.length + '. Por ahora nadie decidió mejor que vos.'
+          : 'Quedaste ' + me.pos + '° de ' + fin.length + '. Arriba de todo: ' + top.tagText + ' con ' + top.icon + ' ' + top.title + '.';
+        else summary = (otros===1 ? 'Una persona terminó tu partida' : otros + ' personas terminaron tu partida')
+          + (me.pos===1 ? ' y nadie te pasó.' : '. Vas ' + me.pos + '° de ' + fin.length + '.');
+      }
+      const ready = !loading && !error && !empty;
+      return { code: d.code || v.challenge, loading, error, empty, rows, ready, creador: !esDuelo, skeleton:[0,1,2],
+        onRefresh: () => this.loadDuelo(d.code || v.challenge),
+        summary, hasSummary: ready && !!summary,
+        emptyTitle: esDuelo ? 'Sos el primero en terminar este duelo.' : 'Todavía nadie jugó tu partida.',
+        emptyText: esDuelo ? 'Pasale el link a alguien más y fijate quién te supera.' : 'Copiá el link de arriba y mandáselo a alguien que se crea mejor que vos. Cuando lo juegue, aparece acá.',
+        hasActive: ready && activos > 0,
+        activeNote: (activos===1 ? 'Hay 1 persona jugando' : 'Hay ' + activos + ' personas jugando') + ' ahora. La tabla todavía se puede mover.',
+        hasAnon: ready && !!me && !me.tag,
+        hasMore: ready && (hidden > 0 || !!s.dueloAll),
+        moreLabel: s.dueloAll ? 'Ver menos' : 'Ver los ' + all.length,
+        onMore: () => this.setState({ dueloAll: !s.dueloAll }),
+        refreshLabel: s.dueloRefreshing ? 'Actualizando…' : 'Actualizar' };
+    }
 
     // ---------- lo que ve el template (misma forma que el original) ----------
     renderVals() {
@@ -745,8 +814,9 @@
         challengeLink: this.dueloUrl(),
         dueloCopyLabel: s.dueloCopied ? '¡Copiado!' : 'Copiar link',
         onCopyDuelo: this.copyDuelo,
-        // el aviso de duelo sale en la pantalla de inicio: viene del link (?duelo=)
-        esDuelo: !!s.duelo, dueloCode: s.duelo || '',
+        // en el inicio, el aviso de duelo viene del link (?duelo=); al final, de la partida
+        esDuelo: s.screen === 'start' ? !!s.duelo : !!v.duelo, dueloCode: s.duelo || '',
+        duelo: this.dueloView(),
         onStory: () => this.setState({storyOpen:true}),
         onCloseStory: () => this.setState({storyOpen:false}),
         stopStory: (e) => { if (e && e.stopPropagation) e.stopPropagation(); },
