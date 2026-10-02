@@ -102,6 +102,7 @@ export interface GameView {
   pacienciaBonus: number;
   bonusPac: number;
   cuna: boolean;
+  /** vacío hasta el final: con el código se juega la misma partida como duelo y se puede explorar desde otra cuenta */
   challenge: string;
   duelo: boolean;
   bigThreshold: number;
@@ -217,7 +218,7 @@ export function toView(s: RunState, cfgIn: Partial<Config> = {}): GameView {
     history: s.history.map((h) => ({ icon: h.icon, label: h.label, tag: h.tag, risk: h.risk, delta: h.delta, round: h.round })),
     income: incomeFor(cfg, s.round, s.rep), yieldGain: s.yieldGain, yieldRate: s.yieldRate, streak: s.streak,
     paciencia: s.paciencia, paciencMax: s.paciencMax, pacienciaBonus: bonusPaciencia(s.paciencia), bonusPac: s.bonusPac,
-    cuna: s.cuna, challenge: s.challenge, duelo: s.duelo, bigThreshold: bigThreshold(s.rep),
+    cuna: s.cuna, challenge: s.screen === 'result' ? s.challenge : '', duelo: s.duelo, bigThreshold: bigThreshold(s.rep),
     positions, current, toast, evChoice, quiz, mini, final,
   };
 }

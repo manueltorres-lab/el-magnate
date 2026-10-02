@@ -57,6 +57,7 @@ function checkView(v: GameView, s: E.RunState) {
   }
   // antes de terminar no hay final
   if (v.screen !== 'result') assert.equal(v.final, null);
+  if (v.screen !== 'result') assert.ok(!json.includes(s.challenge), `la vista (${v.phase}) incluye el código de la partida`);
 }
 
 test('toView no filtra información oculta en ninguna fase', async () => {
