@@ -81,7 +81,8 @@ Qué cubren:
 - **Vista** (`engine/test/view.test.ts`): recorre todas las fases y minijuegos y verifica
   que no salgan `order`, `showRound`, `rngState`, semillas, `miniBag`, `min`/`max`,
   `tagCounts`/`riskCounts`, los sobres antes de abrir, el sector o los rodillos antes del
-  giro, la carta tapada de la banca, ni la respuesta o el porqué del Sillón antes de responder.
+  giro, la carta tapada de la banca, ni la respuesta o el porqué del Sillón antes de responder,
+  ni el código de la partida antes del final (con él se jugaría la misma partida como duelo).
 - **Balance** (`sim/balance.test.ts`): ver [`sim/README.md`](sim/README.md).
 
 ## Decisiones tomadas en la Fase 1

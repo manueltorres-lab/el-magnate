@@ -73,7 +73,6 @@ describe('partidas', () => {
     const c = await call(app, 'POST', '/runs', t, {});
     assert.equal(c.status, 201);
     assertNoLeaks(c.json, 'crear');
-    assert.match(c.json.view.challenge, /^MGN-[A-Z0-9]{5}$/);
     assert.equal(c.json.version, 0);
     assert.equal(c.json.view.phase, 'choose');
     let k = 1;
@@ -200,13 +199,12 @@ describe('duelos', () => {
   test('mismo código: mismos escenarios y, con las mismas decisiones, mismo resultado', async () => {
     const p1 = newUser(), p2 = newUser();
     const a = await call(app, 'POST', '/runs', p1, {});
-    const code = a.json.view.challenge;
+    const ra = await playOut(app, p1, a.json.runId, 0, a.json.view);
+    const code = ra.view.challenge;
     const b = await call(app, 'POST', '/runs', p2, { duelo: code.toLowerCase() });
     assert.equal(b.status, 201);
-    assert.equal(b.json.view.challenge, code);
     assert.equal(b.json.view.duelo, true);
     assert.deepEqual({ ...b.json.view, duelo: false }, a.json.view);
-    const ra = await playOut(app, p1, a.json.runId, 0, a.json.view);
     const rb = await playOut(app, p2, b.json.runId, 0, b.json.view);
     assert.deepEqual({ ...rb.view, duelo: false }, ra.view);
 
@@ -241,8 +239,7 @@ describe('duelos', () => {
     const creador = newUser(), jugando = newUser(), abandona = newUser(), curioso = newUser();
     await call(app, 'PUT', '/me/lbtag', creador, { lbtag: 'duelo.creador' });
     const a = await call(app, 'POST', '/runs', creador, {});
-    const code = a.json.view.challenge;
-    await playOut(app, creador, a.json.runId, 0, a.json.view);
+    const code = (await playOut(app, creador, a.json.runId, 0, a.json.view)).view.challenge;
     const j = await call(app, 'POST', '/runs', jugando, { duelo: code });
     const ab = await call(app, 'POST', '/runs', abandona, { duelo: code });
     await call(app, 'POST', '/runs', abandona, {}); // empezar otra partida abandona la del duelo
@@ -267,6 +264,16 @@ describe('duelos', () => {
     const act = await call(app, 'POST', `/runs/${back.json.runId}/actions`, abandona, { version: back.json.version, action: { type: 'pick', option: 0 } });
     assert.equal(act.status, 200);
     void j;
+  });
+
+  test('el código de la partida no sale hasta el final', async () => {
+    const t = newUser();
+    const c = await call(app, 'POST', '/runs', t, {});
+    const act = await call(app, 'POST', `/runs/${c.json.runId}/actions`, t, { version: 0, action: E.validActions(c.json.view)[0] });
+    const reload = await call(app, 'GET', '/runs/' + c.json.runId, t);
+    const { view } = await playOut(app, t, c.json.runId, act.json.version, act.json.view);
+    assert.match(view.challenge, /^MGN-[A-Z0-9]{5}$/);
+    assert.ok(!JSON.stringify([c.json, act.json, reload.json]).includes(view.challenge), 'el código salió antes del final');
   });
 
   test('código de duelo inválido → 400', async () => {
