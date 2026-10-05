@@ -267,6 +267,19 @@ test('front: al recargar retoma la partida guardada en sessionStorage', async ()
   assert.equal(b.comp.state.version, a.comp.state.version);
 });
 
+test('front: en otra pestaña del mismo navegador recuerda el nombre', async () => {
+  const server = fakeServer();
+  const a = loadFront(server);
+  a.comp.componentDidMount();
+  await a.settle();
+  a.comp.renderVals().onName({ target: { value: 'Maxi' } });
+  // pestaña nueva: comparte localStorage, sessionStorage arranca vacío
+  const b = loadFront(server, { local: a.storage.local, session: mem() });
+  b.comp.componentDidMount();
+  await b.settle();
+  assert.equal(b.comp.renderVals().playerName, 'Maxi');
+});
+
 test('front: ranking real con tu fila resaltada, y rareza real en la colección y la carta', async () => {
   const server = fakeServer();
   server.setRareza({ fuente: 'real', partidas: 12345, pct: { imperio: 0.4, magnate: 6.5, constructor: 9.9 } });

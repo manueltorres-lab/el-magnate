@@ -129,7 +129,7 @@
   // ---------- la lógica de la pantalla ----------
   window.MagnateLogic = (Base) => class extends Base {
     state = {
-      screen:'start', name: store.get('sessionStorage', 'elmagnate.nombre') || '',
+      screen:'start', name: store.get('localStorage', 'elmagnate.nombre') || '',
       runId:null, version:0, view:null, starting:false, net:null,
       anim:null, wheelAngle:0,
       tab:'carta', rankTab:'semanal', lbtag:'', tagSaved:false, unlocked:[], storyOpen:false,
@@ -732,7 +732,7 @@
       return {
         isStart: s.screen==='start', isGame: s.screen==='game', isResult: s.screen==='result',
         playerName: s.name,
-        onName: (e) => { store.set('sessionStorage', 'elmagnate.nombre', e.target.value); this.setState({name:e.target.value}); },
+        onName: (e) => { store.set('localStorage', 'elmagnate.nombre', e.target.value); this.setState({name:e.target.value}); },
         onStart: this.start, onRestart: this.restart, onContinue: act({ type:'continue' }),
         onFinishMini: act({ type:'miniFinish' }),
         startLabel: s.starting ? 'Preparando la partida…' : 'Empezar la partida',
