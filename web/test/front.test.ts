@@ -109,7 +109,7 @@ function loadFront(server: ReturnType<typeof fakeServer>, storage = { local: mem
     document: {},
   };
   ctx.window = ctx;
-  // la sesión anónima, como la maneja supabase-js: los errores de red no la borran
+  // la sesión anónima, como la maneja supabase-js: tras un error de red sigue guardada
   const auth = {
     session: { access_token: 'tok' } as Json,
     /** el próximo getSession falla por red al querer renovarla */

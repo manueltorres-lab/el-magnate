@@ -87,7 +87,7 @@
   async function accessToken() {
     const { data, error } = await supa().auth.getSession();
     if (data.session) return data.session.access_token;
-    // sin red no se sabe si la sesión sigue viva: abrir otra sería empezar como otro jugador
+    // tras un corte de red la sesión sigue guardada: abrir otra ahora sería empezar como otro jugador
     if (error && window.supabase.isAuthRetryableFetchError(error)) throw networkError();
     signingIn = signingIn || (async () => {
       try {
@@ -120,7 +120,7 @@
     }
     const json = await res.json().catch(() => null);
     if (res.ok) return json;
-    // token rechazado: se renueva la misma sesión; un jugador nuevo solo si Auth ya no la acepta
+    // token rechazado: se renueva la misma sesión; un jugador nuevo solo si Auth la da por terminada
     if (res.status === 401 && !retried) {
       const { error } = await supa().auth.refreshSession();
       if (error && window.supabase.isAuthRetryableFetchError(error)) throw networkError();
