@@ -165,11 +165,11 @@
           unlocked: [...new Set([...s.unlocked, ...me.unlocked])],
           lbtag: me.lbtag || localTag, tagSaved: !!me.lbtag,
         }));
-        const runId = store.get('sessionStorage', 'elmagnate.run');
-        if (runId) {
+        const runId = store.get('localStorage', 'elmagnate.run');
+        if (runId && !this.state.duelo) {
           const r = await api('GET', '/runs/' + runId).catch(() => null);
           if (r && r.status !== 'abandoned') this.applyRun(r);
-          else store.set('sessionStorage', 'elmagnate.run', null);
+          else store.set('localStorage', 'elmagnate.run', null);
         }
       } catch { /* sin red al cargar: se reintenta al empezar */ }
     }
@@ -206,7 +206,7 @@
       this.setState({ starting: true, net: null });
       try {
         const r = await api('POST', '/runs', this.state.duelo ? { duelo: this.state.duelo } : {});
-        store.set('sessionStorage', 'elmagnate.run', r.runId);
+        store.set('localStorage', 'elmagnate.run', r.runId);
         this.setState({ tab:'carta', storyOpen:false, copied:false, wheelAngle:0, dueloRes:null, dueloAll:false });
         this.applyRun(r);
       } catch (e) {
