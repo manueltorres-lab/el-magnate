@@ -91,6 +91,10 @@ page = page.replace(
 
 // dos agregados al template: el botón de empezar muestra que está preparando la partida,
 // y un aviso abajo para errores de red con "Reintentar" (§8.5 y §8.6 del handoff)
+const startBtn = '>Empezar la partida</button>';
+if (!page.includes(startBtn)) throw new Error('No encontré el botón de empezar');
+page = page.replace(startBtn, '>{{ startLabel }}</button>');
+
 // "Descargar imagen" de la carta usaba la misma acción que "Copiar el texto": con una propia
 // se puede medir aparte (Google Analytics, evento story_download)
 {
@@ -98,10 +102,6 @@ page = page.replace(
   if (!re.test(page)) throw new Error('No encontré el botón "Descargar imagen"');
   page = page.replace(re, 'sc-camel-on-click="{{ onStoryDownload }}"$1');
 }
-
-const startBtn = '>Empezar la partida</button>';
-if (!page.includes(startBtn)) throw new Error('No encontré el botón de empezar');
-page = page.replace(startBtn, '>{{ startLabel }}</button>');
 
 // Fase 4: el ranking y la rareza son reales; las notas al pie dejan de decir "de ejemplo"
 for (const [from, to] of [
