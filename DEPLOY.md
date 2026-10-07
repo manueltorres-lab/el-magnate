@@ -153,5 +153,5 @@ bundler; con el `.dc.html` anterior da exactamente la versión publicada).
 - Eventos: `game_start`, `game_finish`, `sillon_play`, `duelo_share`, `story_download`,
   `lbtag_saved`, `cta_click`. Solo pasan los parámetros `es_duelo`, `final_key`, `quiebra`,
   `capital_rango` y `origen`: nunca $LBtag, ids, código de duelo ni montos exactos.
-- El link de "Desafía a alguien" lleva `utm_source=duelo&utm_medium=share`; la URL que
+- El link de "Desafiá a alguien" lleva `utm_source=duelo&utm_medium=share`; la URL que
   llega a GA reemplaza el código de duelo por `duelo=1`.
