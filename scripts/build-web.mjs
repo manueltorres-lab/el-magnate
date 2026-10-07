@@ -79,7 +79,7 @@ const encode = (s) => s.replace(/\s(on[A-Z]\w*|viewBox|preserveAspectRatio)=/g,
 // scripts: config y sesión, datos, lógica conectada y recién después el runtime (que arranca solo)
 page = page.replace(
   `<script src="${runtimeUuid}"></script>`,
-  ['config.js', 'vendor/supabase.js', 'data.js', 'app.js', 'vendor/dc-runtime.js']
+  ['config.js', 'env.js', 'analytics.js', 'vendor/supabase.js', 'data.js', 'app.js', 'vendor/dc-runtime.js']
     .map((s) => `<script src="${s}"></script>`).join('\n'),
 );
 
@@ -94,6 +94,14 @@ page = page.replace(
 const startBtn = '>Empezar la partida</button>';
 if (!page.includes(startBtn)) throw new Error('No encontré el botón de empezar');
 page = page.replace(startBtn, '>{{ startLabel }}</button>');
+
+// "Descargar imagen" de la carta usaba la misma acción que "Copiar el texto": con una propia
+// se puede medir aparte (Google Analytics, evento story_download)
+{
+  const re = /sc-camel-on-click="\{\{ onCopy \}\}"([^>]*>Descargar imagen<\/button>)/;
+  if (!re.test(page)) throw new Error('No encontré el botón "Descargar imagen"');
+  page = page.replace(re, 'sc-camel-on-click="{{ onStoryDownload }}"$1');
+}
 
 // Fase 4: el ranking y la rareza son reales; las notas al pie dejan de decir "de ejemplo"
 for (const [from, to] of [
