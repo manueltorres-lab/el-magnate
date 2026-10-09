@@ -112,8 +112,8 @@ deja afuera `web/test/`.
 
 Se publica sola: cada push a `main` corre `npm test` y, si pasa, `wrangler deploy`
 (`.github/workflows/deploy.yml`; el resultado se ve en la pestaña *Actions* de GitHub). Usa dos
-secretos del repo (*Settings → Secrets and variables → Actions*), que solo puede cargar el
-dueño del repo:
+secretos del environment `Prod` del repo (*Settings → Environments → Prod*), que solo puede
+cargar el dueño del repo:
 
 - `CLOUDFLARE_ACCOUNT_ID`: el id de la cuenta de Cloudflare de la empresa.
 - `CLOUDFLARE_API_TOKEN`: un token solo para esto, creado con la plantilla *Edit Cloudflare
