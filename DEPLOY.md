@@ -110,8 +110,17 @@ la empresa: un Worker `el-magnate` que solo sirve los archivos de `web/` (Cloudf
 crea los proyectos de Pages así). La config está en `wrangler.jsonc`; `web/.assetsignore`
 deja afuera `web/test/`.
 
-Para publicar cambios del front: `npx wrangler deploy` desde la raíz del repo, con un token
-que tenga *Workers Scripts: Edit* en la cuenta (`CLOUDFLARE_API_TOKEN`).
+Se publica sola: cada push a `main` corre `npm test` y, si pasa, `wrangler deploy`
+(`.github/workflows/deploy.yml`; el resultado se ve en la pestaña *Actions* de GitHub). Usa dos
+secretos del environment `Prod` del repo (*Settings → Environments → Prod*), que solo puede
+cargar el dueño del repo:
+
+- `CLOUDFLARE_ACCOUNT_ID`: el id de la cuenta de Cloudflare de la empresa.
+- `CLOUDFLARE_API_TOKEN`: un token solo para esto, creado con la plantilla *Edit Cloudflare
+  Workers*, limitado a esa cuenta y a la zona `elmagnate.com.ar`. *Workers Scripts: Edit* no
+  se puede limitar a un Worker: el token puede cambiar todos los Workers de la cuenta.
+
+A mano da lo mismo: `npx wrangler deploy` desde la raíz, con esas dos variables de entorno.
 
 CAPTCHA: widget de Turnstile "El Magnate" en la misma cuenta, con los dos dominios. Su
 Site Key está en `web/config.js`; la Secret Key va solo en Supabase (*Authentication →
@@ -149,10 +158,9 @@ bundler; con el `.dc.html` anterior da exactamente la versión publicada).
   aviso de cookies (Consent Mode v2, `analytics_storage` denegado por defecto). Si rechaza o
   no elige, no se carga nada de Google. La elección queda en `localStorage`
   (`elmagnate.cookies`).
-- El ID sale de la variable de entorno `GA_MEASUREMENT_ID` al publicar:
-  `GA_MEASUREMENT_ID=G-XXXXXXXXXX npm run build:env && npx wrangler deploy`. Eso escribe
-  `web/env.js`; en el repo ese archivo va vacío (local y previews no mandan datos), así que
-  no hay que commitearlo con el ID. No es secreto (se ve en el navegador igual).
+- El Measurement ID está en `web/config.js`, solo en la config del dominio real: en
+  `localhost` no se carga Analytics y no se ensucian los datos. No es secreto (se ve en el
+  navegador igual).
 - Eventos: `game_start`, `game_finish`, `sillon_play`, `duelo_share`, `story_download`,
   `lbtag_saved`, `cta_click`. Solo pasan los parámetros `es_duelo`, `final_key`, `quiebra`,
   `capital_rango` y `origen`: nunca $LBtag, ids, código de duelo ni montos exactos.

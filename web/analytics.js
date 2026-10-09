@@ -1,10 +1,10 @@
-// Google Analytics 4 con Consent Mode v2, solo si hay Measurement ID (web/env.js) y la
+// Google Analytics 4 con Consent Mode v2, solo si hay Measurement ID (web/config.js) y la
 // persona aceptó. Si rechaza o todavía no eligió, no se carga nada de Google.
 // La lógica del juego llama a window.MagnateAnalytics.track(evento, params), que no hace
 // nada sin ID, sin consentimiento o si gtag.js no cargó.
 (() => {
   'use strict';
-  const ID = ((window.MAGNATE_ENV || {}).gaMeasurementId || '').trim();
+  const ID = ((window.MAGNATE_CONFIG || {}).gaMeasurementId || '').trim();
   const KEY = 'elmagnate.cookies'; // 'si' | 'no'
   // solo estos parámetros llegan a GA: nada de $LBtag, ids, código de duelo ni montos exactos
   const PARAMS = new Set(['es_duelo', 'final_key', 'quiebra', 'capital_rango', 'origen']);
@@ -34,8 +34,7 @@
     });
     gtag('consent', 'update', { analytics_storage: 'granted' });
     gtag('js', new Date());
-    const dev = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
-    gtag('config', ID, Object.assign({}, landing, dev ? { debug_mode: true } : {}));
+    gtag('config', ID, landing);
     const s = document.createElement('script');
     s.async = true;
     s.src = 'https://www.googletagmanager.com/gtag/js?id=' + encodeURIComponent(ID);

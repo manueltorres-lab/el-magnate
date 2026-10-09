@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 
 const SRC = readFileSync(new URL('../analytics.js', import.meta.url), 'utf8');
+const CONFIG = readFileSync(new URL('../config.js', import.meta.url), 'utf8');
 type Json = any; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 function el(tag: string): Json {
@@ -22,19 +23,20 @@ function el(tag: string): Json {
   return e;
 }
 
-function load({ id = '', stored = null as string | null, href = 'https://elmagnate.com.ar/' } = {}) {
+function load({ id = '', stored = null as string | null, href = 'https://elmagnate.com.ar/', realConfig = false } = {}) {
   const storage = new Map<string, string>();
   if (stored) storage.set('elmagnate.cookies', stored);
   const head = el('head'), body = el('body');
   const ctx: Json = {
     URL, Object, Set, Date, encodeURIComponent,
-    MAGNATE_ENV: { gaMeasurementId: id },
+    MAGNATE_CONFIG: { gaMeasurementId: id },
     location: new URL(href),
     localStorage: { getItem: (k: string) => storage.get(k) ?? null, setItem: (k: string, v: string) => storage.set(k, v) },
     document: { readyState: 'complete', referrer: 'https://l.instagram.com/', head, body, createElement: el, addEventListener: () => {} },
   };
   ctx.window = ctx;
   vm.createContext(ctx);
+  if (realConfig) vm.runInContext(CONFIG, ctx);
   vm.runInContext(SRC, ctx);
   const banner = () => body.children.find((c: Json) => c.attrs.role === 'dialog' && !c.removed);
   const scripts = () => head.children.filter((c: Json) => c.tag === 'script');
@@ -90,7 +92,6 @@ test('analytics: "Dale" carga gtag.js con Consent Mode v2 y los eventos pasan fi
   assert.equal(config[1], 'G-TEST123');
   assert.equal(config[2].page_location, 'https://elmagnate.com.ar/?duelo=1&utm_source=duelo&utm_medium=share', 'sin el código de duelo, con utm');
   assert.equal(config[2].page_referrer, 'https://l.instagram.com/');
-  assert.equal(config[2].debug_mode, undefined, 'debug_mode solo en local');
 
   a.track('game_finish', { final_key: 'imperio', quiebra: false, es_duelo: true, capital_rango: '>100M',
     capital: 512345678, lbtag: 'yo.mismo', player_id: 'x', runId: 'y', challenge: 'MGN-ABCDE' });
@@ -101,9 +102,19 @@ test('analytics: "Dale" carga gtag.js con Consent Mode v2 y los eventos pasan fi
   assert.equal(a.ctx.MagnateAnalytics.capitalRango(1e8), '>100M');
 });
 
-test('analytics: si ya aceptó antes, carga directo y en local activa debug_mode', () => {
-  const a = load({ id: 'G-TEST123', stored: 'si', href: 'http://localhost:5173/' });
+test('analytics: si ya aceptó antes, carga directo sin volver a preguntar', () => {
+  const a = load({ id: 'G-TEST123', stored: 'si' });
   assert.equal(a.banner(), undefined);
   assert.equal(a.scripts().length, 1);
-  assert.equal(a.layer().find((x) => x[0] === 'config')[2].debug_mode, true);
+});
+
+test('analytics: con la config real, en localhost no carga nada aunque haya aceptado', () => {
+  const a = load({ realConfig: true, stored: 'si', href: 'http://localhost:5173/' });
+  assert.equal(a.scripts().length, 0);
+});
+
+test('analytics: con la config real, en el dominio del juego carga GA con el ID de producción', () => {
+  const a = load({ realConfig: true, stored: 'si' });
+  assert.equal(a.scripts().length, 1);
+  assert.match(a.scripts()[0].src, /^https:\/\/www\.googletagmanager\.com\/gtag\/js\?id=G-[A-Z0-9]+$/);
 });
