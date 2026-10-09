@@ -149,10 +149,9 @@ bundler; con el `.dc.html` anterior da exactamente la versión publicada).
   aviso de cookies (Consent Mode v2, `analytics_storage` denegado por defecto). Si rechaza o
   no elige, no se carga nada de Google. La elección queda en `localStorage`
   (`elmagnate.cookies`).
-- El ID sale de la variable de entorno `GA_MEASUREMENT_ID` al publicar:
-  `GA_MEASUREMENT_ID=G-XXXXXXXXXX npm run build:env && npx wrangler deploy`. Eso escribe
-  `web/env.js`; en el repo ese archivo va vacío (local y previews no mandan datos), así que
-  no hay que commitearlo con el ID. No es secreto (se ve en el navegador igual).
+- El Measurement ID está en `web/config.js`, solo en la config del dominio real: en
+  `localhost` no se carga Analytics y no se ensucian los datos. No es secreto (se ve en el
+  navegador igual).
 - Eventos: `game_start`, `game_finish`, `sillon_play`, `duelo_share`, `story_download`,
   `lbtag_saved`, `cta_click`. Solo pasan los parámetros `es_duelo`, `final_key`, `quiebra`,
   `capital_rango` y `origen`: nunca $LBtag, ids, código de duelo ni montos exactos.

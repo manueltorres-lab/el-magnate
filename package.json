@@ -18,8 +18,7 @@
     "check:anon": "node scripts/check-anon.ts",
     "db:local": "scripts/pg-local.sh start",
     "deno:check": "cd supabase/functions/api && deno check index.ts",
-    "build:web": "node scripts/build-web.mjs",
-    "build:env": "node --env-file-if-exists=.env scripts/write-env.mjs"
+    "build:web": "node scripts/build-web.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

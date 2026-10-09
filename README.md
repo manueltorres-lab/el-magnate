@@ -30,9 +30,8 @@ engine/            motor puro, sin dependencias (corre en Node ≥ 22.18 y en De
 sim/               bots de estrategia y test de balance
 web/               front estático: se publica tal cual (index.html, app.js, config.js…)
   app.js           la lógica de pantalla: manda acciones a la API y muestra el `view`
-  config.js        URL, anon key y Site Key de Turnstile (públicas); localhost → proyecto de prueba
+  config.js        URL, anon key, Site Key de Turnstile y ID de Analytics (públicos); localhost → proyecto de prueba
   analytics.js     Google Analytics 4 con aviso de cookies; no hace nada sin ID o sin consentimiento
-  env.js           GENERADO por `npm run build:env` (Measurement ID); en el repo va vacío
   test/            el front jugando partidas enteras contra el motor
 scripts/           extracción de datos y carga del juego original para los tests
 handoff/           el paquete de handoff tal como llegó (referencia, capturas, logos)

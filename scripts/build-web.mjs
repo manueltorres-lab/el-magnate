@@ -79,7 +79,7 @@ const encode = (s) => s.replace(/\s(on[A-Z]\w*|viewBox|preserveAspectRatio)=/g,
 // scripts: config y sesión, datos, lógica conectada y recién después el runtime (que arranca solo)
 page = page.replace(
   `<script src="${runtimeUuid}"></script>`,
-  ['config.js', 'env.js', 'analytics.js', 'vendor/supabase.js', 'data.js', 'app.js', 'vendor/dc-runtime.js']
+  ['config.js', 'analytics.js', 'vendor/supabase.js', 'data.js', 'app.js', 'vendor/dc-runtime.js']
     .map((s) => `<script src="${s}"></script>`).join('\n'),
 );
 
