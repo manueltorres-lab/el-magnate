@@ -51,6 +51,10 @@
     set: (s, k, v) => { try { v == null ? window[s].removeItem(k) : window[s].setItem(k, v); } catch { /* sin storage */ } },
   };
 
+  // ---------- Google Analytics (web/analytics.js): no hace nada sin ID o sin consentimiento ----------
+  const track = (evento, params) => { if (window.MagnateAnalytics) window.MagnateAnalytics.track(evento, params); };
+  const capitalRango = (n) => (window.MagnateAnalytics ? window.MagnateAnalytics.capitalRango(n) : undefined);
+
   // ---------- sesión anónima (con Turnstile si el proyecto lo pide) ----------
   let sb = null;
   const supa = () => sb || (sb = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseAnonKey, {
@@ -158,9 +162,20 @@
         if (d) this.setState({ duelo: d });
       } catch { /* sin query */ }
       this.booted = this.boot(localTag);
+      // los botones hacia la app son links del template: se miden con un listener aparte
+      this._onDocClick = (e) => {
+        const a = e.target && e.target.closest && e.target.closest('a[href*="lbfinanzas.com/descargar-app"]');
+        if (!a) return;
+        const f = this.view().final;
+        track('cta_click', { final_key: f ? f.titleKey : undefined, origen: /No tengo/.test(a.textContent) ? 'lbtag' : 'cta' });
+      };
+      if (document.addEventListener) document.addEventListener('click', this._onDocClick, true);
     }
 
-    componentWillUnmount() { this.stopAnim(); }
+    componentWillUnmount() {
+      this.stopAnim();
+      if (document.removeEventListener) document.removeEventListener('click', this._onDocClick, true);
+    }
 
     async boot(localTag) {
       api('GET', '/rareza').then((r) => this.setState({ rareza: r })).catch(() => {});
@@ -183,6 +198,13 @@
     applyRun(r) {
       const finished = r.status === 'finished' || r.view.screen === 'result';
       const patch = { runId: r.runId || this.state.runId, version: r.version, view: r.view, screen: finished ? 'result' : 'game', net: null };
+      // eventos solo en el momento en que pasan (no al retomar una partida al recargar)
+      const prev = this.state.view, jugando = this.state.screen === 'game';
+      if (jugando && r.view.phase === 'quiz' && (!prev || prev.phase !== 'quiz')) track('sillon_play');
+      if (jugando && finished && r.view.final) {
+        track('game_finish', { final_key: r.view.final.titleKey, quiebra: !!r.view.final.quiebra,
+          es_duelo: !!r.view.duelo, capital_rango: capitalRango(r.view.final.capital) });
+      }
       if (finished && r.view.final) {
         patch.unlocked = [...new Set([...this.state.unlocked, r.view.final.titleKey])];
         if (this.state.screen !== 'result') { this.loadRanking(); if (!r.duelo) this.loadDuelo(r.view.challenge); }
@@ -212,6 +234,7 @@
       try {
         const r = await api('POST', '/runs', this.state.duelo ? { duelo: this.state.duelo } : {});
         store.set('localStorage', 'elmagnate.run', r.runId);
+        if (!r.alreadyPlayed) track('game_start', { es_duelo: !!this.state.duelo });
         this.setState({ tab:'carta', storyOpen:false, copied:false, wheelAngle:0, dueloRes:null, dueloAll:false });
         this.applyRun(r);
       } catch (e) {
@@ -333,6 +356,7 @@
         const r = await api('PUT', '/me/lbtag', { lbtag: t });
         store.set('localStorage', 'elmagnate.lbtag', r.lbtag);
         this.setState({ lbtag: r.lbtag, tagSaved: true, net: null });
+        track('lbtag_saved');
         this.loadRanking();
         if (this.state.screen === 'result') setTimeout(() => this.loadDuelo(this.view().challenge), 3000);
       } catch (e) {
@@ -344,14 +368,16 @@
       const code = this.view().challenge;
       try {
         const u = new URL(location.href);
-        u.search = '?duelo=' + code;
+        // con utm: en Analytics, el tráfico que llega por un desafío figura como "duelo / share"
+        u.search = '?duelo=' + code + '&utm_source=duelo&utm_medium=share';
         u.hash = '';
         return u.toString();
-      } catch { return 'lb.finanzas/magnate?duelo=' + code; }
+      } catch { return 'https://elmagnate.com.ar/?duelo=' + code + '&utm_source=duelo&utm_medium=share'; }
     }
 
     copyDuelo = () => {
       try { navigator.clipboard.writeText(this.dueloUrl()); } catch { /* sin portapapeles */ }
+      track('duelo_share');
       this.setState({ dueloCopied: true });
       setTimeout(() => this.setState({ dueloCopied: false }), 2200);
     };
@@ -814,6 +840,8 @@
           }));
         })(),
         onCopy: this.copyShare, copied: s.copied,
+        // "Descargar imagen" de la carta: por ahora copia el texto (la imagen es la Fase 5)
+        onStoryDownload: () => { this.copyShare(); track('story_download', { final_key: f ? f.titleKey : undefined }); },
         copyLabel: s.copied ? '¡Copiado!' : 'Copiar el texto',
         challenge: v.challenge,
         challengeLink: this.dueloUrl(),

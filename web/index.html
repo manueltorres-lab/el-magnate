@@ -15,6 +15,8 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23100a18'/%3E%3Ctext x='32' y='45' font-size='34' text-anchor='middle'%3E%F0%9F%92%B0%3C/text%3E%3C/svg%3E">
 
 <script src="config.js"></script>
+<script src="env.js"></script>
+<script src="analytics.js"></script>
 <script src="vendor/supabase.js"></script>
 <script src="data.js"></script>
 <script src="app.js"></script>
@@ -1039,7 +1041,7 @@
         <div style="flex:0 0 auto;display:flex;flex-direction:column;gap:9px;width:min(300px,84vw);">
           <div style="display:flex;gap:9px;">
             <button sc-camel-on-click="{{ onCloseStory }}" style="flex:1;padding:13px;border-radius:12px;border:1px solid rgba(244,233,254,.2);background:rgba(0,0,0,.3);color:rgba(244,233,254,.78);font-size:14px;font-weight:600;cursor:pointer;">Cerrar</button>
-            <button sc-camel-on-click="{{ onCopy }}" style="flex:1;padding:13px;border-radius:12px;border:none;background:#73ffa1;color:#0d3320;font-size:14px;font-weight:700;cursor:pointer;">Descargar imagen</button>
+            <button sc-camel-on-click="{{ onStoryDownload }}" style="flex:1;padding:13px;border-radius:12px;border:none;background:#73ffa1;color:#0d3320;font-size:14px;font-weight:700;cursor:pointer;">Descargar imagen</button>
           </div>
           <div style="display:flex;gap:9px;">
             <sc-for list="{{ redes }}" as="r" hint-placeholder-count="4">

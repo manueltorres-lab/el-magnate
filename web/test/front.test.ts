@@ -98,6 +98,7 @@ const mem = (): Json => { const m = new Map(); return { getItem: (k: string) => 
 
 function loadFront(server: ReturnType<typeof fakeServer>, storage = { local: mem(), session: mem() }, search = '') {
   const timers: { fn: () => void; ms: number }[] = [];
+  const events: [string, Json][] = [];
   const ctx: Json = {
     console, JSON, Math, Object, Array, String, Number, Set, Map, Promise, Error, TypeError, URL, URLSearchParams, Date,
     location: { hostname: 'localhost', href: 'http://localhost:5173/' + search, search, pathname: '/' },
@@ -107,6 +108,11 @@ function loadFront(server: ReturnType<typeof fakeServer>, storage = { local: mem
     setTimeout: (fn: () => void, ms: number) => { timers.push({ fn, ms }); return timers.length; },
     clearTimeout: () => {}, setInterval: () => 0, clearInterval: () => {},
     document: {},
+    // Analytics de mentira: registra los eventos (el módulo real tiene sus propios tests)
+    MagnateAnalytics: {
+      track: (e: string, p?: Json) => { events.push([e, JSON.parse(JSON.stringify(p ?? {}))]); },
+      capitalRango: (n: number) => (n < 1e6 ? '<1M' : n < 15e6 ? '1M-15M' : n < 100e6 ? '15M-100M' : '>100M'),
+    },
   };
   ctx.window = ctx;
   // la sesión anónima, como la maneja supabase-js: tras un error de red sigue guardada
@@ -149,7 +155,7 @@ function loadFront(server: ReturnType<typeof fakeServer>, storage = { local: mem
       if (timers.length) { timers.sort((a, b) => a.ms - b.ms); timers.shift()!.fn(); i = 0; }
     }
   };
-  return { comp, settle, storage, auth };
+  return { comp, settle, storage, auth, events };
 }
 
 function checkBindings(vals: Json, where: string) {
@@ -475,4 +481,45 @@ test('front: duelo — el creador ve quién jugó su partida; el retado ve su pu
   assert.ok(vals.isStart && !vals.esDuelo);
   vals.onStart(); await c.settle();
   assert.equal(server2.calls.filter((x) => x.path === '/runs').pop()!.body.duelo, undefined);
+});
+
+test('front: eventos de Analytics en una partida, sin datos personales', async () => {
+  const server = fakeServer();
+  const { comp, settle, events, storage } = loadFront(server);
+  comp.componentDidMount(); await settle();
+  comp.renderVals().onStart(); await settle();
+  assert.deepEqual(events[0], ['game_start', { es_duelo: false }]);
+  // jugar hasta el final, pasando por El Sillón (siempre aparece una vez por partida)
+  await playToEnd(comp, settle);
+  const names = events.map(([e]) => e);
+  assert.equal(names.filter((e) => e === 'sillon_play').length, 1, 'El Sillón una vez');
+  const fin = events.find(([e]) => e === 'game_finish')![1];
+  const v = comp.state.view;
+  assert.deepEqual(Object.keys(fin).sort(), ['capital_rango', 'es_duelo', 'final_key', 'quiebra']);
+  assert.equal(fin.final_key, v.final.titleKey);
+  assert.equal(fin.es_duelo, false);
+  assert.ok(['<1M', '1M-15M', '15M-100M', '>100M'].includes(fin.capital_rango));
+
+  // compartir el duelo: evento y link con utm
+  const vals = comp.renderVals();
+  vals.onCopyDuelo();
+  assert.deepEqual(events.at(-1), ['duelo_share', {}]);
+  assert.match(vals.challengeLink, /\?duelo=MGN-[A-Z0-9]{5}&utm_source=duelo&utm_medium=share$/);
+  vals.onStoryDownload();
+  assert.deepEqual(events.at(-1), ['story_download', { final_key: v.final.titleKey }]);
+  comp.setState({ lbtag: 'yo.mismo' });
+  comp.renderVals().onSaveTag(); await settle();
+  assert.deepEqual(events.at(-1), ['lbtag_saved', {}]);
+
+  // ningún evento lleva el $LBtag, ids, el código de duelo ni el capital exacto
+  const all = JSON.stringify(events);
+  for (const no of ['yo.mismo', comp.state.runId, v.challenge, String(Math.round(v.final.capital))]) {
+    assert.ok(!all.includes(no), 'se filtró ' + no);
+  }
+
+  // al recargar en la pantalla final se retoma el resultado, sin volver a mandar game_finish
+  const b = loadFront(server, storage);
+  b.comp.componentDidMount(); await b.settle();
+  assert.ok(b.comp.renderVals().isResult);
+  assert.deepEqual(b.events, []);
 });
