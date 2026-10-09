@@ -85,8 +85,10 @@
 
   let signingIn = null;
   async function accessToken() {
-    const { data } = await supa().auth.getSession();
+    const { data, error } = await supa().auth.getSession();
     if (data.session) return data.session.access_token;
+    // tras un corte de red la sesión sigue guardada: abrir otra ahora sería empezar como otro jugador
+    if (error && window.supabase.isAuthRetryableFetchError(error)) throw networkError();
     signingIn = signingIn || (async () => {
       try {
         const token = await captchaToken();
@@ -103,6 +105,7 @@
   class ApiError extends Error {
     constructor(code, message, status) { super(message); this.code = code; this.status = status; }
   }
+  const networkError = () => new ApiError('network', 'Se cortó la conexión. Tu partida está a salvo.', 0);
   async function api(method, path, body, retried) {
     const token = await accessToken();
     let res;
@@ -113,13 +116,15 @@
         body: body ? JSON.stringify(body) : undefined,
       });
     } catch {
-      throw new ApiError('network', 'Se cortó la conexión. Tu partida está a salvo.', 0);
+      throw networkError();
     }
     const json = await res.json().catch(() => null);
     if (res.ok) return json;
-    // sesión vencida o borrada: una sesión nueva y un reintento
+    // token rechazado: se renueva la misma sesión; un jugador nuevo solo si Auth la da por terminada
     if (res.status === 401 && !retried) {
-      await supa().auth.signOut().catch(() => {});
+      const { error } = await supa().auth.refreshSession();
+      if (error && window.supabase.isAuthRetryableFetchError(error)) throw networkError();
+      if (error) await supa().auth.signOut({ scope: 'local' });
       return api(method, path, body, true);
     }
     const e = json && json.error;
