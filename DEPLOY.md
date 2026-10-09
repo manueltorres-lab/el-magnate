@@ -110,8 +110,17 @@ la empresa: un Worker `el-magnate` que solo sirve los archivos de `web/` (Cloudf
 crea los proyectos de Pages así). La config está en `wrangler.jsonc`; `web/.assetsignore`
 deja afuera `web/test/`.
 
-Para publicar cambios del front: `npx wrangler deploy` desde la raíz del repo, con un token
-que tenga *Workers Scripts: Edit* en la cuenta (`CLOUDFLARE_API_TOKEN`).
+Se publica sola: cada push a `main` corre `npm test` y, si pasa, `wrangler deploy`
+(`.github/workflows/deploy.yml`; el resultado se ve en la pestaña *Actions* de GitHub). Usa dos
+secretos del repo (*Settings → Secrets and variables → Actions*), que solo puede cargar el
+dueño del repo:
+
+- `CLOUDFLARE_ACCOUNT_ID`: el id de la cuenta de Cloudflare de la empresa.
+- `CLOUDFLARE_API_TOKEN`: un token solo para esto, creado con la plantilla *Edit Cloudflare
+  Workers*, limitado a esa cuenta y a la zona `elmagnate.com.ar`. *Workers Scripts: Edit* no
+  se puede limitar a un Worker: el token puede cambiar todos los Workers de la cuenta.
+
+A mano da lo mismo: `npx wrangler deploy` desde la raíz, con esas dos variables de entorno.
 
 CAPTCHA: widget de Turnstile "El Magnate" en la misma cuenta, con los dos dominios. Su
 Site Key está en `web/config.js`; la Secret Key va solo en Supabase (*Authentication →
