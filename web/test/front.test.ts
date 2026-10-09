@@ -248,7 +248,7 @@ test('front: si la partida avanzó en otra pestaña (409), se pone al día sin e
   assert.equal(comp.state.version, 1, 'tomó la versión del server');
 });
 
-test('front: al recargar retoma la partida guardada en sessionStorage', async () => {
+test('front: al recargar retoma la partida guardada', async () => {
   const server = fakeServer();
   const a = loadFront(server);
   a.comp.componentDidMount();
@@ -265,6 +265,48 @@ test('front: al recargar retoma la partida guardada en sessionStorage', async ()
   assert.ok(vals.isGame && vals.view.isToast, 'vuelve a la misma pantalla');
   assert.equal(b.comp.state.runId, a.comp.state.runId);
   assert.equal(b.comp.state.version, a.comp.state.version);
+});
+
+test('front: en otra pestaña del mismo navegador recuerda el nombre', async () => {
+  const server = fakeServer();
+  const a = loadFront(server);
+  a.comp.componentDidMount();
+  await a.settle();
+  a.comp.renderVals().onName({ target: { value: 'Maxi' } });
+  // pestaña nueva: comparte localStorage, sessionStorage arranca vacío
+  const b = loadFront(server, { local: a.storage.local, session: mem() });
+  b.comp.componentDidMount();
+  await b.settle();
+  assert.equal(b.comp.renderVals().playerName, 'Maxi');
+});
+
+test('front: en otra pestaña vuelve al resultado de la última partida', async () => {
+  const server = fakeServer();
+  const a = loadFront(server);
+  a.comp.componentDidMount();
+  await a.settle();
+  a.comp.renderVals().onStart();
+  await a.settle();
+  await playToEnd(a.comp, a.settle);
+  const b = loadFront(server, { local: a.storage.local, session: mem() });
+  b.comp.componentDidMount();
+  await b.settle();
+  assert.ok(b.comp.renderVals().isResult, 'muestra el resultado');
+  assert.equal(b.comp.state.runId, a.comp.state.runId);
+});
+
+test('front: con un link de duelo muestra la invitación, no la partida anterior', async () => {
+  const server = fakeServer();
+  const a = loadFront(server);
+  a.comp.componentDidMount();
+  await a.settle();
+  a.comp.renderVals().onStart();
+  await a.settle();
+  const b = loadFront(server, { local: a.storage.local, session: mem() }, '?duelo=MGN-AAAAA');
+  b.comp.componentDidMount();
+  await b.settle();
+  const vals = b.comp.renderVals();
+  assert.ok(vals.esDuelo && !vals.isGame && !vals.isResult, 'queda en la invitación al duelo');
 });
 
 test('front: ranking real con tu fila resaltada, y rareza real en la colección y la carta', async () => {

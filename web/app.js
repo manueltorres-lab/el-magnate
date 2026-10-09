@@ -129,7 +129,7 @@
   // ---------- la lógica de la pantalla ----------
   window.MagnateLogic = (Base) => class extends Base {
     state = {
-      screen:'start', name: store.get('sessionStorage', 'elmagnate.nombre') || '',
+      screen:'start', name: store.get('localStorage', 'elmagnate.nombre') || '',
       runId:null, version:0, view:null, starting:false, net:null,
       anim:null, wheelAngle:0,
       tab:'carta', rankTab:'semanal', lbtag:'', tagSaved:false, unlocked:[], storyOpen:false,
@@ -165,11 +165,11 @@
           unlocked: [...new Set([...s.unlocked, ...me.unlocked])],
           lbtag: me.lbtag || localTag, tagSaved: !!me.lbtag,
         }));
-        const runId = store.get('sessionStorage', 'elmagnate.run');
-        if (runId) {
+        const runId = store.get('localStorage', 'elmagnate.run');
+        if (runId && !this.state.duelo) {
           const r = await api('GET', '/runs/' + runId).catch(() => null);
           if (r && r.status !== 'abandoned') this.applyRun(r);
-          else store.set('sessionStorage', 'elmagnate.run', null);
+          else store.set('localStorage', 'elmagnate.run', null);
         }
       } catch { /* sin red al cargar: se reintenta al empezar */ }
     }
@@ -206,7 +206,7 @@
       this.setState({ starting: true, net: null });
       try {
         const r = await api('POST', '/runs', this.state.duelo ? { duelo: this.state.duelo } : {});
-        store.set('sessionStorage', 'elmagnate.run', r.runId);
+        store.set('localStorage', 'elmagnate.run', r.runId);
         this.setState({ tab:'carta', storyOpen:false, copied:false, wheelAngle:0, dueloRes:null, dueloAll:false });
         this.applyRun(r);
       } catch (e) {
@@ -732,7 +732,7 @@
       return {
         isStart: s.screen==='start', isGame: s.screen==='game', isResult: s.screen==='result',
         playerName: s.name,
-        onName: (e) => { store.set('sessionStorage', 'elmagnate.nombre', e.target.value); this.setState({name:e.target.value}); },
+        onName: (e) => { store.set('localStorage', 'elmagnate.nombre', e.target.value); this.setState({name:e.target.value}); },
         onStart: this.start, onRestart: this.restart, onContinue: act({ type:'continue' }),
         onFinishMini: act({ type:'miniFinish' }),
         startLabel: s.starting ? 'Preparando la partida…' : 'Empezar la partida',
