@@ -89,8 +89,10 @@
 
   let signingIn = null;
   async function accessToken() {
-    const { data } = await supa().auth.getSession();
+    const { data, error } = await supa().auth.getSession();
     if (data.session) return data.session.access_token;
+    // tras un corte de red la sesión sigue guardada: abrir otra ahora sería empezar como otro jugador
+    if (error && window.supabase.isAuthRetryableFetchError(error)) throw networkError();
     signingIn = signingIn || (async () => {
       try {
         const token = await captchaToken();
@@ -107,6 +109,7 @@
   class ApiError extends Error {
     constructor(code, message, status) { super(message); this.code = code; this.status = status; }
   }
+  const networkError = () => new ApiError('network', 'Se cortó la conexión. Tu partida está a salvo.', 0);
   async function api(method, path, body, retried) {
     const token = await accessToken();
     let res;
@@ -117,13 +120,15 @@
         body: body ? JSON.stringify(body) : undefined,
       });
     } catch {
-      throw new ApiError('network', 'Se cortó la conexión. Tu partida está a salvo.', 0);
+      throw networkError();
     }
     const json = await res.json().catch(() => null);
     if (res.ok) return json;
-    // sesión vencida o borrada: una sesión nueva y un reintento
+    // token rechazado: se renueva la misma sesión; un jugador nuevo solo si Auth la da por terminada
     if (res.status === 401 && !retried) {
-      await supa().auth.signOut().catch(() => {});
+      const { error } = await supa().auth.refreshSession();
+      if (error && window.supabase.isAuthRetryableFetchError(error)) throw networkError();
+      if (error) await supa().auth.signOut({ scope: 'local' });
       return api(method, path, body, true);
     }
     const e = json && json.error;
@@ -133,7 +138,7 @@
   // ---------- la lógica de la pantalla ----------
   window.MagnateLogic = (Base) => class extends Base {
     state = {
-      screen:'start', name: store.get('sessionStorage', 'elmagnate.nombre') || '',
+      screen:'start', name: store.get('localStorage', 'elmagnate.nombre') || '',
       runId:null, version:0, view:null, starting:false, net:null,
       anim:null, wheelAngle:0,
       tab:'carta', rankTab:'semanal', lbtag:'', tagSaved:false, unlocked:[], storyOpen:false,
@@ -180,11 +185,11 @@
           unlocked: [...new Set([...s.unlocked, ...me.unlocked])],
           lbtag: me.lbtag || localTag, tagSaved: !!me.lbtag,
         }));
-        const runId = store.get('sessionStorage', 'elmagnate.run');
-        if (runId) {
+        const runId = store.get('localStorage', 'elmagnate.run');
+        if (runId && !this.state.duelo) {
           const r = await api('GET', '/runs/' + runId).catch(() => null);
           if (r && r.status !== 'abandoned') this.applyRun(r);
-          else store.set('sessionStorage', 'elmagnate.run', null);
+          else store.set('localStorage', 'elmagnate.run', null);
         }
       } catch { /* sin red al cargar: se reintenta al empezar */ }
     }
@@ -228,7 +233,7 @@
       this.setState({ starting: true, net: null });
       try {
         const r = await api('POST', '/runs', this.state.duelo ? { duelo: this.state.duelo } : {});
-        store.set('sessionStorage', 'elmagnate.run', r.runId);
+        store.set('localStorage', 'elmagnate.run', r.runId);
         if (!r.alreadyPlayed) track('game_start', { es_duelo: !!this.state.duelo });
         this.setState({ tab:'carta', storyOpen:false, copied:false, wheelAngle:0, dueloRes:null, dueloAll:false });
         this.applyRun(r);
@@ -758,7 +763,7 @@
       return {
         isStart: s.screen==='start', isGame: s.screen==='game', isResult: s.screen==='result',
         playerName: s.name,
-        onName: (e) => { store.set('sessionStorage', 'elmagnate.nombre', e.target.value); this.setState({name:e.target.value}); },
+        onName: (e) => { store.set('localStorage', 'elmagnate.nombre', e.target.value); this.setState({name:e.target.value}); },
         onStart: this.start, onRestart: this.restart, onContinue: act({ type:'continue' }),
         onFinishMini: act({ type:'miniFinish' }),
         startLabel: s.starting ? 'Preparando la partida…' : 'Empezar la partida',

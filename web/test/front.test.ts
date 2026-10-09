@@ -27,19 +27,20 @@ function fakeServer() {
   let tag: string | null = null;
   let rareza: Json = { fuente: 'simulacion', partidas: 0, pct: {} };
   let rivales: Json[] = [];
-  const calls: { method: string; path: string; body: Json }[] = [];
-  let failNext: 'network' | 'conflict' | null = null;
+  const calls: { method: string; path: string; body: Json; auth: string }[] = [];
+  let failNext: 'network' | 'conflict' | 'unauthorized' | null = null;
   const reply = (status: number, json: unknown) => ({ ok: status < 400, status, json: async () => json });
 
-  async function fetch(url: string, init: { method: string; body?: string }) {
+  async function fetch(url: string, init: { method: string; body?: string; headers: Record<string, string> }) {
     if (failNext === 'network') { failNext = null; throw new TypeError('Failed to fetch'); }
+    if (failNext === 'unauthorized') { failNext = null; return reply(401, { error: { code: 'unauthorized', message: 'Se te venció la sesión.' } }); }
     try { return await handle(url, init); }
     catch (e) { return reply(500, { error: { code: 'internal', message: 'servidor falso: ' + (e as Error).message } }); }
   }
-  async function handle(url: string, init: { method: string; body?: string }) {
+  async function handle(url: string, init: { method: string; body?: string; headers: Record<string, string> }) {
     const path = url.replace(/^.*\/functions\/v1\/api/, '');
     const body = init.body ? JSON.parse(init.body) : null;
-    calls.push({ method: init.method, path, body });
+    calls.push({ method: init.method, path, body, auth: init.headers.authorization });
     if (init.method === 'GET' && path === '/me') return reply(200, { playerId: 'p', lbtag: null, unlocked: [...unlocked] });
     if (init.method === 'PUT' && path === '/me/lbtag') { tag = body.lbtag.toLowerCase(); return reply(200, { lbtag: tag }); }
     if (init.method === 'GET' && path === '/rareza') return reply(200, rareza);
@@ -114,11 +115,30 @@ function loadFront(server: ReturnType<typeof fakeServer>, storage = { local: mem
     },
   };
   ctx.window = ctx;
-  ctx.supabase = { createClient: () => ({ auth: {
-    getSession: async () => ({ data: { session: { access_token: 'tok' } } }),
-    signInAnonymously: async () => ({ data: { session: { access_token: 'tok' } }, error: null }),
-    signOut: async () => ({}),
-  } }) };
+  // la sesión anónima, como la maneja supabase-js: tras un error de red sigue guardada
+  const auth = {
+    session: { access_token: 'tok' } as Json,
+    /** el próximo getSession falla por red al querer renovarla */
+    loadFailsOnce: false,
+    refresh: 'ok' as 'ok' | 'network' | 'dead',
+  };
+  const networkError = () => Object.assign(new Error('Failed to fetch'), { name: 'AuthRetryableFetchError', status: 0 });
+  ctx.supabase = {
+    isAuthRetryableFetchError: (e: Json) => e?.name === 'AuthRetryableFetchError',
+    createClient: () => ({ auth: {
+      getSession: async () => {
+        if (auth.loadFailsOnce) { auth.loadFailsOnce = false; return { data: { session: null }, error: networkError() }; }
+        return { data: { session: auth.session }, error: null };
+      },
+      refreshSession: async () => {
+        if (auth.refresh === 'network') return { data: { session: null }, error: networkError() };
+        if (auth.refresh === 'dead' || !auth.session) return { data: { session: null }, error: Object.assign(new Error('Invalid Refresh Token'), { status: 400 }) };
+        return { data: { session: auth.session }, error: null };
+      },
+      signInAnonymously: async () => { auth.session = { access_token: 'tok-jugador-nuevo' }; return { data: { session: auth.session }, error: null }; },
+      signOut: async () => { auth.session = null; return { error: null }; },
+    } }),
+  };
   vm.createContext(ctx);
   for (const f of ['config.js', 'data.js', 'app.js']) vm.runInContext(read(f), ctx, { filename: f });
   const Base = vm.runInContext(`(class { constructor(p){ this.props = p || {}; }
@@ -135,7 +155,7 @@ function loadFront(server: ReturnType<typeof fakeServer>, storage = { local: mem
       if (timers.length) { timers.sort((a, b) => a.ms - b.ms); timers.shift()!.fn(); i = 0; }
     }
   };
-  return { comp, settle, storage, events };
+  return { comp, settle, storage, auth, events };
 }
 
 function checkBindings(vals: Json, where: string) {
@@ -239,6 +259,64 @@ test('front: sin red muestra "Reintentar" y reintentando sigue la misma partida'
   assert.equal(comp.state.runId, runId);
 });
 
+test('front: si la API rechaza el token (401), renueva la sesión y sigue siendo el mismo jugador', async () => {
+  const server = fakeServer();
+  const { comp, settle } = loadFront(server);
+  comp.componentDidMount();
+  await settle();
+  comp.renderVals().onStart();
+  await settle();
+  server.fail('unauthorized');
+  comp.renderVals().options[0].pick();
+  await settle();
+  assert.ok(comp.renderVals().view.isToast, 'la jugada se aplicó en el reintento');
+  assert.equal(server.calls.at(-1)!.auth, 'Bearer tok');
+});
+
+test('front: si la sesión ya no se puede renovar, sigue como jugador nuevo', async () => {
+  const server = fakeServer();
+  const { comp, settle, auth } = loadFront(server);
+  comp.componentDidMount();
+  await settle();
+  comp.renderVals().onStart();
+  await settle();
+  auth.refresh = 'dead';
+  server.fail('unauthorized');
+  comp.renderVals().options[0].pick();
+  await settle();
+  assert.equal(server.calls.at(-1)!.auth, 'Bearer tok-jugador-nuevo');
+});
+
+test('front: si se corta la red al renovar la sesión, avisa y no crea otro jugador', async () => {
+  const server = fakeServer();
+  const { comp, settle, auth } = loadFront(server);
+  comp.componentDidMount();
+  await settle();
+  comp.renderVals().onStart();
+  await settle();
+  auth.refresh = 'network';
+  server.fail('unauthorized');
+  comp.renderVals().options[0].pick();
+  await settle();
+  const vals = comp.renderVals();
+  assert.ok(vals.net.show && vals.net.hasRetry, 'aparece el aviso con Reintentar');
+  auth.refresh = 'ok';
+  vals.net.retry();
+  await settle();
+  assert.equal(server.calls.at(-1)!.auth, 'Bearer tok');
+});
+
+test('front: si se corta la red al cargar la página, no crea otro jugador', async () => {
+  const server = fakeServer();
+  const { comp, settle, auth } = loadFront(server);
+  auth.loadFailsOnce = true;
+  comp.componentDidMount();
+  await settle();
+  comp.renderVals().onStart();
+  await settle();
+  assert.equal(server.calls.at(-1)!.auth, 'Bearer tok');
+});
+
 test('front: si la partida avanzó en otra pestaña (409), se pone al día sin error', async () => {
   const server = fakeServer();
   const { comp, settle } = loadFront(server);
@@ -254,7 +332,7 @@ test('front: si la partida avanzó en otra pestaña (409), se pone al día sin e
   assert.equal(comp.state.version, 1, 'tomó la versión del server');
 });
 
-test('front: al recargar retoma la partida guardada en sessionStorage', async () => {
+test('front: al recargar retoma la partida guardada', async () => {
   const server = fakeServer();
   const a = loadFront(server);
   a.comp.componentDidMount();
@@ -271,6 +349,48 @@ test('front: al recargar retoma la partida guardada en sessionStorage', async ()
   assert.ok(vals.isGame && vals.view.isToast, 'vuelve a la misma pantalla');
   assert.equal(b.comp.state.runId, a.comp.state.runId);
   assert.equal(b.comp.state.version, a.comp.state.version);
+});
+
+test('front: en otra pestaña del mismo navegador recuerda el nombre', async () => {
+  const server = fakeServer();
+  const a = loadFront(server);
+  a.comp.componentDidMount();
+  await a.settle();
+  a.comp.renderVals().onName({ target: { value: 'Maxi' } });
+  // pestaña nueva: comparte localStorage, sessionStorage arranca vacío
+  const b = loadFront(server, { local: a.storage.local, session: mem() });
+  b.comp.componentDidMount();
+  await b.settle();
+  assert.equal(b.comp.renderVals().playerName, 'Maxi');
+});
+
+test('front: en otra pestaña vuelve al resultado de la última partida', async () => {
+  const server = fakeServer();
+  const a = loadFront(server);
+  a.comp.componentDidMount();
+  await a.settle();
+  a.comp.renderVals().onStart();
+  await a.settle();
+  await playToEnd(a.comp, a.settle);
+  const b = loadFront(server, { local: a.storage.local, session: mem() });
+  b.comp.componentDidMount();
+  await b.settle();
+  assert.ok(b.comp.renderVals().isResult, 'muestra el resultado');
+  assert.equal(b.comp.state.runId, a.comp.state.runId);
+});
+
+test('front: con un link de duelo muestra la invitación, no la partida anterior', async () => {
+  const server = fakeServer();
+  const a = loadFront(server);
+  a.comp.componentDidMount();
+  await a.settle();
+  a.comp.renderVals().onStart();
+  await a.settle();
+  const b = loadFront(server, { local: a.storage.local, session: mem() }, '?duelo=MGN-AAAAA');
+  b.comp.componentDidMount();
+  await b.settle();
+  const vals = b.comp.renderVals();
+  assert.ok(vals.esDuelo && !vals.isGame && !vals.isResult, 'queda en la invitación al duelo');
 });
 
 test('front: ranking real con tu fila resaltada, y rareza real en la colección y la carta', async () => {

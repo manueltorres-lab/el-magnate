@@ -5,7 +5,7 @@ window.MAGNATE_CONFIG = (() => {
   const PROD = {
     supabaseUrl: 'https://ayyfmyixljjtxkfvyhsz.supabase.co',
     supabaseAnonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF5eWZteWl4bGpqdHhrZnZ5aHN6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAzNDczNDYsImV4cCI6MjEwNTkyMzM0Nn0.xMUmJjCvr9myT5mXxQRpfgtB-7iIqZrzRD9WhRt6hB0',
-    turnstileSiteKey: '0x4AAAAAAFDhbcHnGCV2gton',
+    turnstileSiteKey: '0x4AAAAAAFOmxPmzfU0WEKdm',
   };
   const DEV = {
     supabaseUrl: 'https://esluocwhxooyuwcyfntd.supabase.co',

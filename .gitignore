@@ -3,4 +3,5 @@ node_modules/
 .env.*
 supabase/.temp/
 supabase/.branches/
+.wrangler/
 !.env.example
