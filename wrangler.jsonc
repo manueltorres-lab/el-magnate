@@ -1,0 +1,10 @@
+{
+  // el front: un Worker que solo sirve los archivos de web/ (npx wrangler deploy)
+  "name": "el-magnate",
+  "compatibility_date": "2026-10-01",
+  "assets": { "directory": "web" },
+  "routes": [
+    { "pattern": "elmagnate.com.ar", "custom_domain": true },
+    { "pattern": "www.elmagnate.com.ar", "custom_domain": true }
+  ]
+}

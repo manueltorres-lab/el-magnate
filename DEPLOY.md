@@ -88,9 +88,9 @@ Hecho, con el OK de la persona:
   La parte de "usuario anónimo logueado" no corre acá porque Turnstile pide un token de
   CAPTCHA; se verificó en el proyecto de prueba, que tiene el mismo esquema.
 
-Pendiente: cuando exista el dominio del juego, agregarlo a `ALLOWED_ORIGINS`
-(`npx supabase secrets set --project-ref ayyfmyixljjtxkfvyhsz ALLOWED_ORIGINS="https://<dominio>,http://localhost:5173"`).
-El front va a necesitar la Site Key de Turnstile para `signInAnonymously`.
+Desde el 05/10/2026: `ALLOWED_ORIGINS="https://elmagnate.com.ar,https://www.elmagnate.com.ar"`
+(sin `localhost`: en local el front usa el proyecto de prueba) y la función `api` redesplegada
+con el código de la partida oculto hasta el final.
 
 ## 4. El front (web/)
 
@@ -103,17 +103,20 @@ template, fuentes, logo y runtime, así se ve idéntica). Se escriben a mano sol
   real con Turnstile.
 - Para probar local: `cd web && python3 -m http.server 5173` y abrir http://localhost:5173.
 
-### Publicarla en Cloudflare Pages
+### Dónde está publicada (05/10/2026)
 
-1. En dash.cloudflare.com → *Workers & Pages* → *Create* → *Pages* → *Upload assets*
-   (o conectar este repo de GitHub, con **directorio de salida `web`** y sin comando de build).
-2. Nombre del proyecto: `el-magnate` → queda en `https://el-magnate.pages.dev`.
-3. En *Turnstile* → el widget de la Site Key → *Hostnames*: agregar `el-magnate.pages.dev`
-   (y después el dominio propio). Sin esto, Cloudflare rechaza el CAPTCHA en esa página.
-4. Con el dominio ya elegido, sumarlo al CORS del servidor:
-   `npx supabase secrets set --project-ref ayyfmyixljjtxkfvyhsz ALLOWED_ORIGINS="https://el-magnate.pages.dev,http://localhost:5173"`
-5. Dominio propio (ej. `magnate.lbfinanzas.com`): en el proyecto de Pages → *Custom domains*,
-   y repetir los pasos 3 y 4 con ese dominio.
+En https://elmagnate.com.ar y https://www.elmagnate.com.ar, en la cuenta de Cloudflare de
+la empresa: un Worker `el-magnate` que solo sirve los archivos de `web/` (Cloudflare ahora
+crea los proyectos de Pages así). La config está en `wrangler.jsonc`; `web/.assetsignore`
+deja afuera `web/test/`.
+
+Para publicar cambios del front: `npx wrangler deploy` desde la raíz del repo, con un token
+que tenga *Workers Scripts: Edit* en la cuenta (`CLOUDFLARE_API_TOKEN`).
+
+CAPTCHA: widget de Turnstile "El Magnate" en la misma cuenta, con los dos dominios. Su
+Site Key está en `web/config.js`; la Secret Key va solo en Supabase (*Authentication →
+Attack Protection → Captcha*). Si se agrega otro dominio, sumarlo al widget y a
+`ALLOWED_ORIGINS`.
 
 ## 5. Fase 4 (desplegada en prueba y en el real, 02/10/2026)
 
