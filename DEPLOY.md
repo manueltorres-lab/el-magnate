@@ -154,10 +154,10 @@ bundler; con el `.dc.html` anterior da exactamente la versión publicada).
 
 ## 6. Google Analytics 4 (front)
 
-- `web/analytics.js` carga GA4 **solo** si hay Measurement ID y la persona tocó "Dale" en el
-  aviso de cookies (Consent Mode v2, `analytics_storage` denegado por defecto). Si rechaza o
-  no elige, no se carga nada de Google. La elección queda en `localStorage`
-  (`elmagnate.cookies`).
+- `web/analytics.js` carga GA4 en cuanto abre la página, en todas las pantallas y
+  dispositivos: **sin aviso de cookies** (decisión del equipo, 13/10/2026). La publicidad queda
+  denegada (`ad_storage`, `ad_user_data`, `ad_personalization`: Google no usa los datos para
+  anuncios). La elección del aviso viejo (`elmagnate.cookies` en `localStorage`) se borra al cargar.
 - El Measurement ID está en `web/config.js`, solo en la config del dominio real: en
   `localhost` no se carga Analytics y no se ensucian los datos. No es secreto (se ve en el
   navegador igual).

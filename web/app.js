@@ -51,7 +51,7 @@
     set: (s, k, v) => { try { v == null ? window[s].removeItem(k) : window[s].setItem(k, v); } catch { /* sin storage */ } },
   };
 
-  // ---------- Google Analytics (web/analytics.js): no hace nada sin ID o sin consentimiento ----------
+  // ---------- Google Analytics (web/analytics.js): no hace nada sin Measurement ID ----------
   const track = (evento, params) => { if (window.MagnateAnalytics) window.MagnateAnalytics.track(evento, params); };
   const capitalRango = (n) => (window.MagnateAnalytics ? window.MagnateAnalytics.capitalRango(n) : undefined);
 
